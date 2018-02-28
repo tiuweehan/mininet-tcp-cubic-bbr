@@ -75,12 +75,8 @@ def plot_all(path, pcap_data):
         plt.close()
         print("  *  {} created".format(plot[2]))
         """
-    f, axarr = plt.subplots(len(plots), sharex=True)
+    f, axarr = plt.subplots(len(plots))
     f.set_size_inches(20, 55)
-
-    for ax in axarr.flatten():
-        for tk in ax.get_xticklabels():
-            tk.set_visible(True)
 
     print("  *  create plot_complete.pdf")
     for i, plot in enumerate(plots):

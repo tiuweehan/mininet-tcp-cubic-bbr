@@ -406,7 +406,6 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 def parse_buffer_backlog(path):
     output = {}
     paths = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.buffer')]
-    print paths
 
     for i, p in enumerate(paths):
         output[i] = ([], [])
