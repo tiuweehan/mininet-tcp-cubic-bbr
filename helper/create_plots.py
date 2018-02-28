@@ -39,12 +39,16 @@ def plot_all(path, pcap_data):
         #(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate'),
         (avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT'),
         (rtt, plot_rtt, 'plot_rtt.pdf', 'RTT'),
-        ((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog'),
         (inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight')
     ]
 
+    if len(buffer_backlog) > 0:
+        plots += [
+            ((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog')
+        ]
+
     if len(bbr_values) > 0:
-        plots = plots + [
+        plots += [
             (bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP'),
             ((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP'),
             ((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw'),
@@ -143,17 +147,16 @@ def plot_fairness(fairness, p_plt):
 def plot_rtt(rtt, p_plt):
     for c in rtt:
         data = rtt[c]
-        data = filter_percentile(data=data, percentile_min=0.01, percentile_max=0.01)
-        data = filter_smooth(data, 5, 3)
         p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+    p_plt.set_ylim(ymin=0)
 
 
 def plot_avg_rtt(avg_rtt, p_plt):
     for c in avg_rtt:
         data = avg_rtt[c]
-        data = filter_percentile(data=data, percentile_min=0.01, percentile_max=0.01)
         data = filter_smooth(data, 3, 2)
         p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+    p_plt.set_ylim(ymin=0)
 
 
 def plot_inflight(inflight, p_plt):

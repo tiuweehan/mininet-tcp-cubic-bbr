@@ -136,15 +136,13 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 
     t = 0
 
-    not_acked = {}
+    ts_vals = {}
     seqs = {}
-    retransmitted_seqs = {}
 
     start_ts = -1
 
     print('Connections:')
     for ts, buf in pcap:
-
         if start_ts < 0:
             start_ts = ts
 
@@ -182,9 +180,8 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
             avg_rtt[connection_index] = ([], [])
             sending_rate[connection_index] = ([], [])
 
-            not_acked[connection_index] = []
+            ts_vals[connection_index] = ([], [])
             seqs[connection_index] = []
-            retransmitted_seqs[connection_index] = []
 
             inflight_seq[connection_index] = 0
             inflight_ack[connection_index] = 0
@@ -250,6 +247,15 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 
         connection_index = connections.index(tcp_tuple)
 
+        ts_val = None
+        ts_ecr = None
+
+        options = dpkt.tcp.parse_opts(tcp.opts)
+        for opt in options:
+            if opt[0] == dpkt.tcp.TCP_OPT_TIMESTAMP:
+                ts_val = reduce(lambda x, r: (x << 8) + r, map(ord, opt[1][:4]))
+                ts_ecr = reduce(lambda x, r: (x << 8) + r, map(ord, opt[1][4:]))
+
         if src_port > dst_port:
             # client -> server
             tcp_seq = tcp.seq - start_seq[connection_index]
@@ -260,16 +266,16 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
             sending_rate_data_size[connection_index] += ip.len * 8
 
             if tcp_seq in seqs[connection_index]:
-                retransmitted_seqs[connection_index].append(tcp_seq)
-
                 retransmissions[connection_index][0].append(ts - start_ts)
                 retransmission_counter[connection_index] += 1
 
             else:
-                if ip.len > 100:
-                    packet_counter[connection_index] += 1
-                    not_acked[connection_index].append((ts, tcp_seq))
+                packet_counter[connection_index] += 1
+                if len(tcp.data) > 0:
                     seqs[connection_index].append(tcp_seq)
+                if ts_val is not None:
+                    ts_vals[connection_index][0].append(ts)
+                    ts_vals[connection_index][1].append(ts_val)
 
         else:
             # server -> client
@@ -279,22 +285,22 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 
             inflight_ack[connection_index] = max(tcp_ack, inflight_ack[connection_index])
 
-            acked = []
-            if tcp_ack not in retransmitted_seqs[connection_index]:
-                acked = [a for a in not_acked[connection_index] if a[1] == tcp_ack]
+            seqs[connection_index] = [x for x in seqs[connection_index] if x >= tcp_ack]
 
-            if len(acked) > 0:
-                rel_ts = ts - start_ts
+            if ts_ecr in ts_vals[connection_index][1]:
+                index = ts_vals[connection_index][1].index(ts_ecr)
+                rtt = (ts - ts_vals[connection_index][0][index]) * 1000
 
-                for seq in acked:
-                    round_trips[connection_index][0].append(rel_ts)
-                    round_trips[connection_index][1].append(1000 * (ts - seq[0]))
-                    avg_rtt_samples[connection_index].append(1000 * (ts - seq[0]))
-                not_acked[connection_index] = [i for i in not_acked[connection_index] if i[1] < tcp_ack - 10000]
+                ts_vals[connection_index][0].pop(index)
+                ts_vals[connection_index][1].pop(index)
+
+                avg_rtt_samples[connection_index].append(rtt)
+
+                round_trips[connection_index][0].append(ts - start_ts)
+                round_trips[connection_index][1].append(rtt)
 
         inflight_data = inflight_seq[connection_index] - inflight_ack[connection_index]
-        if inflight_data > 0:
-            inflight_avg[connection_index].append(inflight_data * 8)
+        inflight_avg[connection_index].append(inflight_data * 8)
 
     f.close()
 
@@ -398,28 +404,27 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 
 
 def parse_buffer_backlog(path):
-    output = ([], [])
-    path = os.path.join(path, 's2-eth2-tbf.buffer')
+    output = {}
+    paths = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.buffer')]
+    print paths
 
-    if not os.path.isfile(path):
-        print("Missing buffer file: {}".format(path))
-        return {0: output}
-
-    f = open(path)
-    for line in f:
-        split = line.split(' ')
-        timestamp = parse_timestamp(split[0])
-        size = split[2].replace('b\n', '')
-        if 'K' in size:
-            size = float(size.replace('K', '')) * 1000
-        elif 'M' in size:
-            size = float(size.replace('M', '')) * 1000000
-        elif 'G' in size:
-            size = float(size.replace('G', '')) * 1000000000
-        output[0].append(timestamp)
-        output[1].append(float(size) * 8)
-    f.close()
-    return {0: output}
+    for i, p in enumerate(paths):
+        output[i] = ([], [])
+        f = open(p)
+        for line in f:
+            split = line.split(' ')
+            timestamp = parse_timestamp(split[0])
+            size = split[2].replace('b\n', '')
+            if 'K' in size:
+                size = float(size.replace('K', '')) * 1000
+            elif 'M' in size:
+                size = float(size.replace('M', '')) * 1000000
+            elif 'G' in size:
+                size = float(size.replace('G', '')) * 1000000000
+            output[i][0].append(timestamp)
+            output[i][1].append(float(size) * 8)
+        f.close()
+    return output
 
 
 def parse_bbr_values(path):

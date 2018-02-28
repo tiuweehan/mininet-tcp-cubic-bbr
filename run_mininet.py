@@ -163,6 +163,7 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
         # setup FQ, algorithm, netem, nc host
         send.cmd('tc qdisc add dev {}-eth0 root fq pacing'.format(send))
         send.cmd('ip route change 10.0.0.0/8 dev {}-eth0 congctl {}'.format(send, cmd['algorithm']))
+        send.cmd('ethtool -K {}-eth0 tso off'.format(send))
         recv.cmd('tc qdisc add dev {}-eth0 root netem delay {}'.format(recv, cmd['rtt']))
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
@@ -172,8 +173,6 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
                 'while true; do ss -tin | '
                 'grep -o -P "bbr:\(.*\)"; sleep 0.04; done  | '
                 'ts -s "%H:%M:%.S" >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
-        else:
-            send.cmd('touch {}.bbr'.format(os.path.join(output_directory, send.IP())))
 
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
