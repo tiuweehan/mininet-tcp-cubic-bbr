@@ -378,7 +378,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
         'Sending Rate': fairness_sending_rate
     }
 
-    bbr_values = parse_bbr_values(path)
+    bbr_values, cwnd_values = parse_bbr_and_cwnd_values(path)
     bbr_total_values, sync_phases, sync_duration = compute_total_values(bbr_values)
     buffer_backlog = parse_buffer_backlog(path)
 
@@ -397,6 +397,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
                     sending_rate=sending_rate,
                     bbr_values=bbr_values,
                     bbr_total_values=bbr_total_values,
+                    cwnd_values=cwnd_values,
                     retransmissions=retransmissions,
                     retransmissions_interval=retransmissions_interval,
                     buffer_backlog=buffer_backlog,
@@ -426,55 +427,72 @@ def parse_buffer_backlog(path):
     return output
 
 
-def parse_bbr_values(path):
+def parse_bbr_and_cwnd_values(path):
     files = []
-    values = {}
+    bbr_values = {}
+    cwnd_values = {}
 
-    bbr_files = os.listdir(path)
-    bbr_files = [bbr_file for bbr_file in bbr_files if bbr_file.endswith(".bbr")]
-    bbr_files = sorted(bbr_files)
+    all_files = os.listdir(path)
+    all_files = [f for f in all_files if f.endswith(".bbr")]
+    all_files = sorted(all_files)
 
-    for i, bbr_file in enumerate(bbr_files):
-        files.append(os.path.join(path, bbr_file))
-        values[i] = ([], [], [], [], [], [])
+    for i, f in enumerate(all_files):
+        files.append(os.path.join(path, f))
+        bbr_values[i] = ([], [], [], [], [], [])
+        cwnd_values[i] = ([], [], [])
 
-    for i, bbr_file in enumerate(files):
-        f = open(bbr_file)
+    for i, file_path in enumerate(files):
+        f = open(file_path)
 
         for line in f:
-            split = line.split(' ')
+            split = line.split(';')
+            split = map(lambda x: x.strip(), split)
             timestamp = parse_timestamp(split[0])
-            split = split[1].replace('bbr:(', '').replace(')\n', '')
-            split = split.replace('bw:', '').replace('mrtt:', '')
-            split = split.replace('pacing_gain:', '').replace('cwnd_gain:', '')
-            split = split.split(',')
 
-            if len(split) < 4:
-                pacing_gain = 0
-                cwnd_gain = 0
-            else:
-                pacing_gain = split[2]
-                cwnd_gain = split[3]
+            if split[1] != '':
+                bbr = split[1].replace('bbr:(', '').replace(')\n', '')\
+                    .replace('bw:', '').replace('mrtt:','').replace('pacing_gain:', '').replace('cwnd_gain:', '')
+                bbr = bbr.split(',')
 
-            if 'Mbps' in split[0]:
-                bw = float(split[0].replace('Mbps', '')) * 1000000
-            elif 'Kbps' in split[0]:
-                bw = float(split[0].replace('Kbps', '')) * 1000
-            elif 'bps' in split[0]:
-                bw = float(split[0].replace('bps', ''))
-            else:
-                print("Unknown bw format: {}".format(split[0]))
+                if len(bbr) < 4:
+                    pacing_gain = 0
+                    cwnd_gain = 0
+                else:
+                    pacing_gain = float(bbr[2])
+                    cwnd_gain = float(bbr[3])
 
-            rtt = float(split[1])
+                if 'Mbps' in bbr[0]:
+                    bw = float(bbr[0].replace('Mbps', '')) * 1000000
+                elif 'Kbps' in bbr[0]:
+                    bw = float(bbr[0].replace('Kbps', '')) * 1000
+                elif 'bps' in bbr[0]:
+                    bw = float(bbr[0].replace('bps', ''))
+                else:
+                    bw = 0
 
-            values[i][0].append(timestamp)
-            values[i][1].append(bw)
-            values[i][2].append(rtt)
-            values[i][3].append(pacing_gain)
-            values[i][4].append(cwnd_gain)
-            values[i][5].append(bw * rtt / 1000)
+                rtt = float(bbr[1])
+
+                bbr_values[i][0].append(timestamp)
+                bbr_values[i][1].append(bw)
+                bbr_values[i][2].append(rtt)
+                bbr_values[i][3].append(pacing_gain)
+                bbr_values[i][4].append(cwnd_gain)
+                bbr_values[i][5].append(bw * rtt / 1000)
+
+            cwnd = 0
+            ssthresh = 0
+
+            if split[2] != '':
+                cwnd = int(split[2].replace('cwnd:', ''))
+            if split[3] != '':
+                ssthresh = int(split[3].replace('ssthresh:', ''))
+
+            cwnd_values[i][0].append(timestamp)
+            cwnd_values[i][1].append(cwnd)
+            cwnd_values[i][2].append(ssthresh)
+
         f.close()
-    return values
+    return bbr_values, cwnd_values
 
 
 def parse_timestamp(string):

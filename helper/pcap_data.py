@@ -1,6 +1,6 @@
 class PcapData:
     def __init__(self, rtt, inflight, throughput, fairness, avg_rtt, sending_rate, bbr_values,
-                 bbr_total_values, retransmissions, retransmissions_interval, buffer_backlog,
+                 bbr_total_values, cwnd_values, retransmissions, retransmissions_interval, buffer_backlog,
                  data_info=None):
         self.rtt = rtt
         self.inflight = inflight
@@ -10,6 +10,7 @@ class PcapData:
         self.sending_rate = sending_rate
         self.bbr_values = bbr_values
         self.bbr_total_values = bbr_total_values
+        self.cwnd_values = cwnd_values
         self.retransmissions = retransmissions
         self.retransmissions_interval = retransmissions_interval
         self.buffer_backlog = buffer_backlog
@@ -25,6 +26,7 @@ class PcapData:
             'sending_rate': self.sending_rate,
             'bbr_values': self.bbr_values,
             'bbr_total_values': self.bbr_total_values,
+            'cwnd_values': self.cwnd_values,
             'retransmissions': self.retransmissions,
             'retransmissions_interval': self.retransmissions_interval,
             'buffer_backlog': self.buffer_backlog
@@ -41,6 +43,7 @@ class PcapData:
             sending_rate=pcap_dict['sending_rate'],
             bbr_values=pcap_dict['bbr_values'],
             bbr_total_values=pcap_dict['bbr_total_values'],
+            cwnd_values=pcap_dict['cwnd_values'],
             retransmissions=pcap_dict['retransmissions'],
             retransmissions_interval=pcap_dict['retransmissions_interval'],
             buffer_backlog=pcap_dict['buffer_backlog']

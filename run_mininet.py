@@ -168,12 +168,7 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
         # pull BBR values
-        if cmd['algorithm'] == 'bbr':
-            send.cmd(
-                'while true; do ss -tin | '
-                'grep -o -P "bbr:\(.*\)"; sleep 0.04; done  | '
-                'ts -s "%H:%M:%.S" >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
-
+        send.cmd('./ss_script.sh >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
         bandwidth, buffer_size, buffer_latency))
