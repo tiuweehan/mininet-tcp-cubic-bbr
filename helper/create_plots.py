@@ -44,8 +44,7 @@ def plot_all(path, pcap_data):
         (avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT'),
         (rtt, plot_rtt, 'plot_rtt.pdf', 'RTT'),
         (inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight'),
-        (cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND'),
-        (cwnd_values, plot_ssthresh, 'plot_ssthresh.pdf', 'SSTHRESH')
+        (cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND')
     ]
 
     if len(buffer_backlog) > 0:
@@ -236,13 +235,8 @@ def plot_cwnd(cwnd, p_plt):
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     for i, c in enumerate(cwnd):
         data = cwnd[c]
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(i), color=colors[i])
-        p_plt.plot(data[0], data[2], ':', color=colors[i], linewidth=1)
-
-def plot_ssthresh(ssthres, p_plt):
-    for c in ssthres:
-        data = ssthres[c]
-        p_plt.plot(data[0], data[2], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[1], label='Connection {}'.format(i), color=colors[i % len(colors)])
+        p_plt.plot(data[0], data[2], ':', color=colors[i % len(colors)])
 
 def plot_retransmissions(ret_interval, p_plt):
     plot_sum = (ret_interval[len(ret_interval) - 1][0][:],
