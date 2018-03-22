@@ -319,7 +319,10 @@ def filter_smooth(data, size, repeat=1):
             for j in range(max(0, i - size), min(i + size, len(y) - 1)):
                 avg += y[j]
                 avg_counter += 1
-            y_smooth.append(avg / avg_counter)
+            if avg_counter > 0:
+                y_smooth.append(avg / avg_counter)
+            else:
+                y_smooth.append(0)
         y = y_smooth
     return x, y
 
