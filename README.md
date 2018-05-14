@@ -6,6 +6,11 @@
 sudo apt-get install mininet
 ```
 
+Some additional tools are required to be installed:
+```bash
+tcpdump, ethtool, netcat, moreutils
+```
+
 The execution of the mininet script requires root privileges.
 ```bash
 usage: sudo run_mininet.py [-h] [-b BANDWIDTH] [-r RTT] [-d DIRECTORY]
