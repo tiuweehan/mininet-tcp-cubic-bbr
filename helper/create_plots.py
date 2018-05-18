@@ -3,6 +3,9 @@ import os
 import errno
 import math
 
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 
 PLOT_PATH = 'pdf_plots'
@@ -27,6 +30,7 @@ def plot_all(path, pcap_data):
     sending_rate = pcap_data.sending_rate
     bbr_values = pcap_data.bbr_values
     bbr_total_values = pcap_data.bbr_total_values
+    cwnd_values = pcap_data.cwnd_values
     retransmissions = pcap_data.retransmissions
     retransmissions_interval = pcap_data.retransmissions_interval
     buffer_backlog = pcap_data.buffer_backlog
@@ -39,7 +43,8 @@ def plot_all(path, pcap_data):
         #(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate'),
         (avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT'),
         (rtt, plot_rtt, 'plot_rtt.pdf', 'RTT'),
-        (inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight')
+        (inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight'),
+        (cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND')
     ]
 
     if len(buffer_backlog) > 0:
@@ -47,7 +52,13 @@ def plot_all(path, pcap_data):
             ((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog')
         ]
 
-    if len(bbr_values) > 0:
+    has_bbr = False
+    for i in bbr_values:
+        if len(bbr_values[i][0]) > 0:
+            has_bbr = True
+            break
+
+    if has_bbr:
         plots += [
             (bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP'),
             ((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP'),
@@ -220,6 +231,12 @@ def plot_bbr_bdp(bbr, p_plt):
         data = bbr[c]
         p_plt.plot(data[0], data[5], label='Connection {}'.format(c))
 
+def plot_cwnd(cwnd, p_plt):
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    for i, c in enumerate(cwnd):
+        data = cwnd[c]
+        p_plt.plot(data[0], data[1], label='Connection {}'.format(i), color=colors[i % len(colors)])
+        p_plt.plot(data[0], data[2], ':', color=colors[i % len(colors)])
 
 def plot_retransmissions(ret_interval, p_plt):
     plot_sum = (ret_interval[len(ret_interval) - 1][0][:],
@@ -302,7 +319,10 @@ def filter_smooth(data, size, repeat=1):
             for j in range(max(0, i - size), min(i + size, len(y) - 1)):
                 avg += y[j]
                 avg_counter += 1
-            y_smooth.append(avg / avg_counter)
+            if avg_counter > 0:
+                y_smooth.append(avg / avg_counter)
+            else:
+                y_smooth.append(0)
         y = y_smooth
     return x, y
 
