@@ -100,6 +100,31 @@ def parseConfigFile(file):
     return output
 
 
+def check_tools():
+    missing_tools = []
+    tools = {
+        'tcpdump': 'tcpdump',
+        'ethtool': 'ethtool',
+        'netcat': 'netcat',
+        'moreutils': 'ts'
+    }
+
+    for package, tool in tools.items():
+        try:
+            process = subprocess.Popen(['which', tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out = process.communicate()[0]
+            if out == "":
+                missing_tools.append(package)
+        except (OSError, subprocess.CalledProcessError) as e:
+            missing_tools.append(package)
+
+    if len(missing_tools) > 0:
+        print('Missing tools. Please run')
+        print('  apt install ' + ' '.join(missing_tools))
+
+    return len(missing_tools)
+
+
 def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_latency):
     duration = 0
     start_time = 0
@@ -144,10 +169,15 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     net.start()
 
     # start tcp dump
-    subprocess.Popen(['tcpdump', '-i', 's1-eth1', '-n', 'tcp', '-s', '88',
-                      '-w', os.path.join(output_directory, 's1.pcap')])
-    subprocess.Popen(['tcpdump', '-i', 's3-eth1', '-n', 'tcp', '-s', '88',
-                      '-w', os.path.join(output_directory, 's3.pcap')])
+    try:
+        subprocess.Popen(['tcpdump', '-i', 's1-eth1', '-n', 'tcp', '-s', '88',
+                          '-w', os.path.join(output_directory, 's1.pcap')])
+        subprocess.Popen(['tcpdump', '-i', 's3-eth1', '-n', 'tcp', '-s', '88',
+                          '-w', os.path.join(output_directory, 's3.pcap')])
+    except Exception as e:
+        print('Error on starting tcpdump\n{}'.format(e))
+        exit(1)
+
     time.sleep(1)
 
     host_counter = 0
@@ -222,6 +252,9 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
 
 if __name__ == '__main__':
 
+    if check_tools() > 0:
+        exit(1)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('config', metavar='CONFIG',
                         help='Path to the config file.')
@@ -230,7 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('-r', dest='rtt',
                         default='0ms', help='Initial rtt for all flows. (default 0ms)')
     parser.add_argument('-d', dest='directory',
-                        default='.', help='Path to the output directory. (default: .)')
+                        default='test/', help='Path to the output directory. (default: .)')
     parser.add_argument('-s', dest='buffer_size',
                         default='1600b', help='Burst size of the token bucket filter. (default: 1600b)')
     parser.add_argument('-l', dest='latency',
