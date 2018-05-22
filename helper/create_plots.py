@@ -11,6 +11,14 @@ import matplotlib.pyplot as plt
 PLOT_PATH = 'pdf_plots'
 
 
+class Plot:
+    def __init__(self, data, plot_function, file_name, plot_name, unit):
+        self.data = data
+        self.plot_function = plot_function
+        self.file_name = file_name
+        self.plot_name = plot_name
+        self.unit = unit
+
 def plot_all(path, pcap_data):
 
     path = os.path.join(path, PLOT_PATH)
@@ -36,20 +44,20 @@ def plot_all(path, pcap_data):
     buffer_backlog = pcap_data.buffer_backlog
 
     plots = [
-        ((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate'),
-        ((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput'),
-        (fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness'),
-        (retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions'),
-        #(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate'),
-        (avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT'),
-        (rtt, plot_rtt, 'plot_rtt.pdf', 'RTT'),
-        (inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight'),
-        (cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND')
+        Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s'),
+        Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s'),
+        Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
+        Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
+        Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+        Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms'),
+        Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms'),
+        Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit'),
+        Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND', 'MSS')
     ]
 
     if len(buffer_backlog) > 0:
         plots += [
-            ((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog')
+            Plot((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog', 'bit')
         ]
 
     has_bbr = False
@@ -60,17 +68,17 @@ def plot_all(path, pcap_data):
 
     if has_bbr:
         plots += [
-            (bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP'),
-            ((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP'),
-            ((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw'),
-            (bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'rt_prop'),
-            ((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain'),
-            ((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain')
+            Plot(bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP', 'bit'),
+            Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
+            Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw', 'bit/s'),
+            Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'rt_prop', 'ms'),
+            Plot((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain', ''),
+            Plot((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain', '')
         ]
 
     grid_tick_maior_interval = 10
     grid_tick_minor_interval = 2
-    grid_tick_max_value = 1.01 * max(retransmissions_interval[len(retransmissions_interval) - 1][0])
+    grid_tick_max_value = max(retransmissions_interval[len(retransmissions_interval) - 1][0])
     """
     for plot in plots:
         f, ax = plt.subplots(1)
@@ -86,7 +94,7 @@ def plot_all(path, pcap_data):
         plt.close()
         print("  *  {} created".format(plot[2]))
         """
-    f, axarr = plt.subplots(len(plots))
+    f, axarr = plt.subplots(len(plots), sharex=True)
     f.set_size_inches(20, 55)
 
     print("  *  create plot_complete.pdf")
@@ -95,9 +103,14 @@ def plot_all(path, pcap_data):
         axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
         axarr[i].grid(which='both', color='black', linestyle='dashed', alpha=0.3)
 
-        axarr[i].set_title(plot[3])
-        plot[1](plot[0], axarr[i])
-        print("     -  {} created".format(plot[3]))
+        label = plot.plot_name
+        if plot.unit != '':
+            label += ' in {}'.format(plot.unit)
+
+        axarr[i].set_ylabel(label)
+        axarr[i].set_title(plot.plot_name)
+        plot.plot_function(plot.data, axarr[i])
+        print("     -  {} created".format(plot.plot_name))
 
     f.tight_layout()
     plt.savefig(os.path.join(path, 'plot_complete.pdf'))
@@ -233,10 +246,16 @@ def plot_bbr_bdp(bbr, p_plt):
 
 def plot_cwnd(cwnd, p_plt):
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    p_plt.plot([], [], label='CWND', color='black')
+    p_plt.plot([], [], ':', label='SSTHRES', color='black')
+    p_plt.legend()
+
     for i, c in enumerate(cwnd):
         data = cwnd[c]
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(i), color=colors[i % len(colors)])
+        p_plt.plot(data[0], data[1], color=colors[i % len(colors)])
         p_plt.plot(data[0], data[2], ':', color=colors[i % len(colors)])
+
 
 def plot_retransmissions(ret_interval, p_plt):
     plot_sum = (ret_interval[len(ret_interval) - 1][0][:],
@@ -271,6 +290,7 @@ def plot_retransmission_rate(ret_interval, p_plt):
         else:
             rate.append(data[1][i] /data[2][i])
     p_plt.plot(ts, rate, label='Retransmission Rate')
+    p_plt.set_ylim(ymin=0)
 
 
 def plot_diff_inflight_bdp(data, p_plt):
