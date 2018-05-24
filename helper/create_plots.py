@@ -43,12 +43,16 @@ def plot_all(path, pcap_data):
     retransmissions_interval = pcap_data.retransmissions_interval
     buffer_backlog = pcap_data.buffer_backlog
 
+    t_max = 0
+    for t in throughput:
+        t_max = max(t_max, throughput[t][0][-1])
+
     plots = [
         Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s'),
         Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s'),
         Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
         Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
-        Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+        #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
         Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms'),
         Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms'),
         Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit'),
@@ -108,8 +112,9 @@ def plot_all(path, pcap_data):
             label += ' in {}'.format(plot.unit)
 
         axarr[i].set_ylabel(label)
-        axarr[i].set_title(plot.plot_name)
+        axarr[i].set_title('{}. {}'.format(i, plot.plot_name))
         plot.plot_function(plot.data, axarr[i])
+        axarr[i].set_xlim(xmax=t_max)
         print("     -  {} created".format(plot.plot_name))
 
     f.tight_layout()
@@ -126,7 +131,7 @@ def plot_throughput(data, p_plt):
         data = filter_smooth(data, 5, 2)
 
         if int(c) == total:
-            if len(throughput) > 2:
+            if len(throughput) > 2 and len(throughput) < 10:
                 p_plt.plot(data[0], data[1], label='Total Throughput', color='#444444')
         else:
             p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
@@ -145,7 +150,7 @@ def plot_sending_rate(data, p_plt):
         data = filter_smooth(data, 5, 2)
 
         if int(c) == total:
-            if len(sending_rate) > 2:
+            if len(sending_rate) > 2 and len(sending_rate) < 10:
                 p_plt.plot(data[0], data[1], label='Total Sending Rate', color='#444444')
         else:
             p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
@@ -288,7 +293,7 @@ def plot_retransmission_rate(ret_interval, p_plt):
         if data[2][i] == 0:
             rate.append(0)
         else:
-            rate.append(data[1][i] /data[2][i])
+            rate.append(float(data[1][i]) / float(data[2][i]) * 100)
     p_plt.plot(ts, rate, label='Retransmission Rate')
     p_plt.set_ylim(ymin=0)
 
