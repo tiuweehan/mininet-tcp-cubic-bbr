@@ -482,6 +482,9 @@ def parse_bbr_and_cwnd_values(path):
             cwnd = 0
             ssthresh = 0
 
+            if len(split) < 4:
+                continue
+
             if split[2] != '':
                 cwnd = int(split[2].replace('cwnd:', ''))
             if split[3] != '':
