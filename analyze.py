@@ -234,7 +234,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
                 if len(inflight_avg[i]) > 0:
                     inflight[i][1].append(sum(inflight_avg[i]) / len(inflight_avg[i]))
                 else:
-                    inflight[i][1].append(inflight_seq[connection_index] - inflight_ack[connection_index])
+                    inflight[i][1].append(0)
                 inflight_avg[i] = []
 
                 if len(avg_rtt_samples[i]) > 0:
@@ -299,7 +299,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
                 round_trips[connection_index][0].append(ts - start_ts)
                 round_trips[connection_index][1].append(rtt)
 
-        inflight_data = inflight_seq[connection_index] - inflight_ack[connection_index]
+        inflight_data = max(0, inflight_seq[connection_index] - inflight_ack[connection_index])
         inflight_avg[connection_index].append(inflight_data * 8)
 
     f.close()
