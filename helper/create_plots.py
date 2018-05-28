@@ -210,11 +210,15 @@ def plot_buffer_backlog(data, p_plt):
 def plot_bbr_bw(data, p_plt):
     bbr = data[0]
     bbr_bw_total = data[1]
+
+    num_flows = 0
     for c in bbr:
         data = bbr[c]
         p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+        if len(data[0]) > 0:
+            num_flows += 1
 
-    if len(bbr) > 2:
+    if len(bbr) > 2 and num_flows > 1:
         p_plt.plot(bbr_bw_total[0][0], bbr_bw_total[0][1], label='Total', color='#444444')
     p_plt.legend()
 
@@ -237,10 +241,13 @@ def plot_bbr_pacing(data, p_plt):
 
 def plot_bbr_window(data, p_plt):
     bbr, total = data
+    num_flows = 0
     for c in bbr:
         data = bbr[c]
         p_plt.plot(data[0], data[4], label='Connection {}'.format(c))
-    if len(bbr) > 2:
+        if len(data[0]) > 0:
+            num_flows += 1
+    if len(bbr) > 2 and num_flows > 1:
         p_plt.plot(total[1][0], total[1][1], label='Total', color='#444444')
     p_plt.legend()
 

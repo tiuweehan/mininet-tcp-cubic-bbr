@@ -371,8 +371,8 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
             # client -> server
             throughput_data_size[connection_index] += ip.len * 8
 
-    fairness_troughput = compute_fairness(throughput)
-    fairness_sending_rate = compute_fairness(sending_rate)
+    fairness_troughput = compute_fairness(throughput, delta_t)
+    fairness_sending_rate = compute_fairness(sending_rate, delta_t)
     fairness = {
         'Throughtput': fairness_troughput,
         'Sending Rate': fairness_sending_rate
@@ -565,38 +565,43 @@ def compute_total_values(bbr):
     return {0: total_bw, 1: total_window, 2: total_gain}, sync_window_phases, sync_window_durations
 
 
-def compute_fairness(data):
+def compute_fairness(data, interval):
     output = ([], [])
-    connections = []
+    connections = [0, ] * len(data)
     timestamps = []
 
-    for c in data:
-        if len(timestamps) < len(data[c][0]):
-            timestamps = data[c][0]
-        connections.append(data[c])
-
-    for i, ts in enumerate(timestamps):
-        sum_normal = 0.0
-        active_connections = 0
-        sum_square = 0.0
-        for c in connections:
-            v = -1
-            for index, value in enumerate(c[0]):
-                if ts == value:
-                    v = index
-            if v < 0:
+    ts = 0
+    while True:
+        shares = []
+        for i in data:
+            if len(data[i][0]) <= connections[i]:
                 continue
+            if data[i][0][connections[i]] == ts:
+                shares.append(data[i][1][connections[i]])
+                connections[i] += 1
 
-            active_connections += 1
-            sum_normal += c[1][v]
-            sum_square += c[1][v] ** 2
-        if sum_square == 0:
-            continue
-        jain_index = sum_normal ** 2 / (active_connections * sum_square)
+        if len(shares) == 0:
+            break
+
         output[0].append(ts)
-        output[1].append(jain_index)
-
+        output[1].append(compute_jain_index(*shares))
+        ts += interval
     return output
+
+
+def compute_jain_index(*args):
+
+    sum_normal = 0
+    sum_square = 0
+
+    for arg in args:
+        sum_normal += arg
+        sum_square += arg**2
+
+    if len(args) == 0 or sum_square == 0:
+        return 1
+
+    return sum_normal ** 2 / (len(args) * sum_square)
 
 
 if __name__ == "__main__":
