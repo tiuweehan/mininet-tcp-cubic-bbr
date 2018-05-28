@@ -103,8 +103,8 @@ def plot_all(path, pcap_data):
 
     print("  *  create plot_complete.pdf")
     for i, plot in enumerate(plots):
-        #axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
-        #axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
+        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
+        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
         axarr[i].grid(which='both', color='black', linestyle='dashed', alpha=0.3)
 
         label = plot.plot_name
@@ -126,14 +126,17 @@ def plot_throughput(data, p_plt):
     throughput = data[0]
     retransmissions = data[1]
     total = len(throughput) - 1
+
+    if total > 1:
+        data = throughput[total]
+        data = filter_smooth(data, 5, 2)
+        p_plt.plot(data[0], data[1], label='Total Throughput', color='#444444')
+
     for c in throughput:
         data = throughput[c]
         data = filter_smooth(data, 5, 2)
 
-        if int(c) == total:
-            if len(throughput) > 2 and len(throughput) < 10:
-                p_plt.plot(data[0], data[1], label='Total Throughput', color='#444444')
-        else:
+        if int(c) != total:
             p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
 
     for c in retransmissions:
@@ -145,14 +148,17 @@ def plot_sending_rate(data, p_plt):
     sending_rate = data[0]
     retransmissions = data[1]
     total = len(sending_rate) - 1
+
+    if total > 1:
+        data = sending_rate[total]
+        data = filter_smooth(data, 5, 2)
+        p_plt.plot(data[0], data[1], label='Total Sending Rate', color='#444444')
+
     for c in sending_rate:
         data = sending_rate[c]
         data = filter_smooth(data, 5, 2)
 
-        if int(c) == total:
-            if len(sending_rate) > 2 and len(sending_rate) < 10:
-                p_plt.plot(data[0], data[1], label='Total Sending Rate', color='#444444')
-        else:
+        if int(c) != total:
             p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
 
     for c in retransmissions:

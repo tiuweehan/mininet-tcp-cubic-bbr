@@ -567,26 +567,29 @@ def compute_total_values(bbr):
 
 def compute_fairness(data, interval):
     output = ([], [])
-    connections = [0, ] * len(data)
-    timestamps = []
+    connections = [0, ] * len(data.keys())
+
+    max_ts = 0
+    for c in data:
+        max_ts = max(max_ts, max(data[c][0]))
 
     ts = 0
     while True:
+        if ts > max_ts:
+            return output
+
         shares = []
-        for i in data:
+        for i in data.keys():
             if len(data[i][0]) <= connections[i]:
                 continue
             if data[i][0][connections[i]] == ts:
                 shares.append(data[i][1][connections[i]])
                 connections[i] += 1
 
-        if len(shares) == 0:
-            break
-
         output[0].append(ts)
         output[1].append(compute_jain_index(*shares))
         ts += interval
-    return output
+
 
 
 def compute_jain_index(*args):
