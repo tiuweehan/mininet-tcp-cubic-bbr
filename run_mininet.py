@@ -130,6 +130,8 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     start_time = 0
     number_of_hosts = 0
 
+    poll_interval = 0.04
+
     output_directory = os.path.join(directory, '{}_{}'.format(
         time.strftime('%m%d_%H%M%S'), name
     ))
@@ -198,15 +200,15 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
         # pull BBR values
-        send.cmd('./ss_script.sh >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
+        # send.cmd('./ss_script.sh >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
+        send.cmd('./ss_script.sh {} >> {}.bbr &'.format(poll_interval, os.path.join(output_directory, send.IP())))
+
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
         bandwidth, buffer_size, buffer_latency))
     s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(rtt))
-    s2.cmd(
-        'while true; do tc -s -d qdisc show dev s2-eth2 | '
-        'grep -o -P "backlog .*b"; sleep 0.04; done  | '
-        'ts -s "%H:%M:%.S" >> {}.buffer &'.format(os.path.join(output_directory, 's2-eth2-tbf')))
+    s2.cmd('./buffer_script.sh {0} {1} >> {2}.buffer &'.format(poll_interval, 's2-eth2',
+                                                               os.path.join(output_directory, 's2-eth2-tbf')))
 
     complete = duration
     current_time = 0

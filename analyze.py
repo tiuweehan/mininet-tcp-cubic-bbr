@@ -412,9 +412,9 @@ def parse_buffer_backlog(path):
         output[i] = ([], [])
         f = open(p)
         for line in f:
-            split = line.split(' ')
+            split = line.split(';')
             timestamp = parse_timestamp(split[0])
-            size = split[2].replace('b\n', '')
+            size = split[1].replace('b\n', '')
             if 'K' in size:
                 size = float(size.replace('K', '')) * 1000
             elif 'M' in size:
@@ -445,13 +445,25 @@ def parse_bbr_and_cwnd_values(path):
         f = open(file_path)
 
         for line in f:
-            split = line.split(';')
-            split = map(lambda x: x.strip(), split)
+            split = map(lambda x: x.strip(), line.split(';'))
+
             timestamp = parse_timestamp(split[0])
+            cwnd, ssthresh = 0, 0
 
             if split[1] != '':
-                bbr = split[1].replace('bbr:(', '').replace(')\n', '')\
-                    .replace('bw:', '').replace('mrtt:','').replace('pacing_gain:', '').replace('cwnd_gain:', '')
+                cwnd = int(split[1])
+            if split[2] != '':
+                ssthresh = int(split[2])
+
+            cwnd_values[i][0].append(timestamp)
+            cwnd_values[i][1].append(cwnd)
+            cwnd_values[i][2].append(ssthresh)
+
+            if split[3] != '':
+                bbr = split[3].replace('bw:', '')\
+                    .replace('mrtt:','')\
+                    .replace('pacing_gain:', '')\
+                    .replace('cwnd_gain:', '')
                 bbr = bbr.split(',')
 
                 if len(bbr) < 4:
@@ -479,21 +491,6 @@ def parse_bbr_and_cwnd_values(path):
                 bbr_values[i][4].append(cwnd_gain)
                 bbr_values[i][5].append(bw * rtt / 1000)
 
-            cwnd = 0
-            ssthresh = 0
-
-            if len(split) < 4:
-                continue
-
-            if split[2] != '':
-                cwnd = int(split[2].replace('cwnd:', ''))
-            if split[3] != '':
-                ssthresh = int(split[3].replace('ssthresh:', ''))
-
-            cwnd_values[i][0].append(timestamp)
-            cwnd_values[i][1].append(cwnd)
-            cwnd_values[i][2].append(ssthresh)
-
         f.close()
     return bbr_values, cwnd_values
 
@@ -519,7 +516,6 @@ def compute_total_values(bbr):
     sync_window_start = -1
     sync_window_phases = []
     sync_window_durations = []
-    print("Synchron Probe RTT:")
 
     while True:
         active_connections = 0

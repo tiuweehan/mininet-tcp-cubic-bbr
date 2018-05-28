@@ -1,9 +1,5 @@
 while true;
-do 
-	STR=$(ss -tin);
-	BBR=$(echo $STR | grep -oP "bbr:\([^\)]*");
-	CWND=$(echo $STR | grep -oP "cwnd:[^\s]*");
-	SSTHRES=$(echo $STR | grep -oP "ssthresh:[^\s]*");
-	echo $BBR";"$CWND";"$SSTHRES";";
-	sleep 0.04;
-done | ts -s "%H:%M:%.S;";
+do
+    ss -tin | sed -n -e 's/.* cwnd:\([0-9]*\).* bbr:(\([^)]*\)).*/\1;;\2/p' -e 's/.* cwnd:\([1-9]*\).* ssthresh:\([0-9]*\).*/\1;\2;/p';
+    sleep $1;
+done | ts -s '%H:%M:%.S;'

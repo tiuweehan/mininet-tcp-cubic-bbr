@@ -73,7 +73,7 @@ def plot_all(path, pcap_data):
     if has_bbr:
         plots += [
             Plot(bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP', 'bit'),
-            Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
+            #Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
             Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw', 'bit/s'),
             Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'rt_prop', 'ms'),
             Plot((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain', ''),
@@ -103,8 +103,8 @@ def plot_all(path, pcap_data):
 
     print("  *  create plot_complete.pdf")
     for i, plot in enumerate(plots):
-        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
-        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
+        #axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
+        #axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
         axarr[i].grid(which='both', color='black', linestyle='dashed', alpha=0.3)
 
         label = plot.plot_name
