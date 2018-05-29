@@ -50,9 +50,16 @@ def plot_all(path, pcap_data):
     plots = [
         Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s'),
         Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s'),
-        Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
+    ]
+
+    if len(sending_rate.keys()) > 2:
+        plots += [
+            Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
+        ]
+
+    plots += [
         Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
-        #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+        # Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
         Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms'),
         Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms'),
         Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit'),
@@ -105,7 +112,9 @@ def plot_all(path, pcap_data):
     for i, plot in enumerate(plots):
         axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
         axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
-        axarr[i].grid(which='both', color='black', linestyle='dashed', alpha=0.3)
+        axarr[i].grid(b=True, which='major', color='black', linestyle='dashed', alpha=0.2, linewidth=1.5)
+        axarr[i].grid(b=True, which='minor', color='black', linestyle='dashed', alpha=0.2)
+
 
         label = plot.plot_name
         if plot.unit != '':
