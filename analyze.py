@@ -32,6 +32,8 @@ def main():
                         help='Process all sub-directories recursively.')
     parser.add_argument('-n', dest='new', action='store_true',
                         help='Only process new (unprocessed) directories.')
+    parser.add_argument('--hide-total', dest='hide_total', action='store_true',
+                        help='Hide total values in plots for sending rate, throughput, ...')
     args = parser.parse_args()
 
     path = args.path
@@ -83,7 +85,7 @@ def main():
 
         if 'pdf' in args.output:
             print('Creating plots ...')
-            plot_all(path, pcap_data)
+            plot_all(path, pcap_data, hide_total=args.hide_total)
 
 
 def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
@@ -161,47 +163,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
         else:
             tcp_tuple = (dst_ip, dst_port, src_ip, src_port)
 
-        if tcp.flags & 0x01:
-            if tcp_tuple in active_connections:
-                active_connections.remove(tcp_tuple)
-                print('  [FIN] {}:{} -> {}:{}'.format(tcp_tuple[0], tcp_tuple[1],
-                                                      tcp_tuple[2], tcp_tuple[3]))
-            continue
-
-        if tcp.flags & 0x02 and tcp_tuple not in connections:
-            connections.append(tcp_tuple)
-            active_connections.append(tcp_tuple)
-            connection_index = connections.index(tcp_tuple)
-
-            start_seq[connection_index] = tcp.seq
-
-            round_trips[connection_index] = ([], [])
-            inflight[connection_index] = ([], [])
-            avg_rtt[connection_index] = ([], [])
-            sending_rate[connection_index] = ([], [])
-
-            ts_vals[connection_index] = ([], [])
-            seqs[connection_index] = []
-
-            inflight_seq[connection_index] = 0
-            inflight_ack[connection_index] = 0
-
-            inflight_avg[connection_index] = []
-
-            sending_rate_data_size[connection_index] = 0
-
-            avg_rtt_samples[connection_index] = []
-
-            retransmissions[connection_index] = ([],)
-            retransmission_counter[connection_index] = 0
-            packet_counter[connection_index] = 0
-            retransmissions_interval[connection_index] = ([], [], [])
-
-            print('  [SYN] {}:{} -> {}:{}'.format(tcp_tuple[0], tcp_tuple[1],
-                                                  tcp_tuple[2], tcp_tuple[3]))
-            continue
-
-        if ts - start_ts > t:
+        while ts - start_ts > t:
 
             total_sending_rate[0].append(t)
             total_sending_rate[1].append(0)
@@ -244,6 +206,45 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
                 avg_rtt_samples[i] = []
 
             t += delta_t
+
+        if tcp.flags & 0x02 and tcp_tuple not in connections:
+            connections.append(tcp_tuple)
+            active_connections.append(tcp_tuple)
+            connection_index = connections.index(tcp_tuple)
+
+            start_seq[connection_index] = tcp.seq
+
+            round_trips[connection_index] = ([], [])
+            inflight[connection_index] = ([], [])
+            avg_rtt[connection_index] = ([], [])
+            sending_rate[connection_index] = ([], [])
+
+            ts_vals[connection_index] = ([], [])
+            seqs[connection_index] = []
+
+            inflight_seq[connection_index] = 0
+            inflight_ack[connection_index] = 0
+
+            inflight_avg[connection_index] = []
+
+            sending_rate_data_size[connection_index] = 0
+
+            avg_rtt_samples[connection_index] = []
+
+            retransmissions[connection_index] = ([],)
+            retransmission_counter[connection_index] = 0
+            packet_counter[connection_index] = 0
+            retransmissions_interval[connection_index] = ([], [], [])
+
+            print('  [SYN] {}:{} -> {}:{}'.format(tcp_tuple[0], tcp_tuple[1],
+                                                  tcp_tuple[2], tcp_tuple[3]))
+
+        if tcp.flags & 0x01:
+            if tcp_tuple in active_connections:
+                active_connections.remove(tcp_tuple)
+                print('  [FIN] {}:{} -> {}:{}'.format(tcp_tuple[0], tcp_tuple[1],
+                                                      tcp_tuple[2], tcp_tuple[3]))
+            continue
 
         connection_index = connections.index(tcp_tuple)
 
@@ -337,21 +338,7 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
         else:
             tcp_tuple = (dst_ip, dst_port, src_ip, src_port)
 
-        if tcp.flags & 0x01:
-            if tcp_tuple in active_connections:
-                active_connections.remove(tcp_tuple)
-            continue
-
-        if tcp.flags & 0x02 and tcp_tuple not in connections:
-            connections.append(tcp_tuple)
-            active_connections.append(tcp_tuple)
-            connection_index = connections.index(tcp_tuple)
-
-            throughput[connection_index] = ([], [])
-            throughput_data_size[connection_index] = 0
-            continue
-
-        if ts - start_ts > t:
+        while ts - start_ts > t:
             total_throughput[0].append(t)
             total_throughput[1].append(0)
 
@@ -364,6 +351,19 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
                 total_throughput[1][-1] += tp
                 throughput_data_size[i] = 0
             t += delta_t
+
+        if tcp.flags & 0x02 and tcp_tuple not in connections:
+            connections.append(tcp_tuple)
+            active_connections.append(tcp_tuple)
+            connection_index = connections.index(tcp_tuple)
+
+            throughput[connection_index] = ([], [])
+            throughput_data_size[connection_index] = 0
+
+        if tcp.flags & 0x01:
+            if tcp_tuple in active_connections:
+                active_connections.remove(tcp_tuple)
+            continue
 
         connection_index = connections.index(tcp_tuple)
 

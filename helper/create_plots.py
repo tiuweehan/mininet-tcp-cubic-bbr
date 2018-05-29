@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 
 PLOT_PATH = 'pdf_plots'
 
+PLOT_TOTAL = True
+
 
 class Plot:
     def __init__(self, data, plot_function, file_name, plot_name, unit):
@@ -19,7 +21,11 @@ class Plot:
         self.plot_name = plot_name
         self.unit = unit
 
-def plot_all(path, pcap_data):
+
+def plot_all(path, pcap_data, hide_total=False):
+
+    global PLOT_TOTAL
+    PLOT_TOTAL = not hide_total
 
     path = os.path.join(path, PLOT_PATH)
 
@@ -136,7 +142,7 @@ def plot_throughput(data, p_plt):
     retransmissions = data[1]
     total = len(throughput) - 1
 
-    if total > 1:
+    if total > 1 and PLOT_TOTAL:
         data = throughput[total]
         data = filter_smooth(data, 5, 2)
         p_plt.plot(data[0], data[1], label='Total Throughput', color='#444444')
@@ -158,7 +164,7 @@ def plot_sending_rate(data, p_plt):
     retransmissions = data[1]
     total = len(sending_rate) - 1
 
-    if total > 1:
+    if total > 1 and PLOT_TOTAL:
         data = sending_rate[total]
         data = filter_smooth(data, 5, 2)
         p_plt.plot(data[0], data[1], label='Total Sending Rate', color='#444444')
@@ -233,7 +239,7 @@ def plot_bbr_bw(data, p_plt):
         if len(data[0]) > 0:
             num_flows += 1
 
-    if len(bbr) > 2 and num_flows > 1:
+    if len(bbr) > 2 and num_flows > 1 and PLOT_TOTAL:
         p_plt.plot(bbr_bw_total[0][0], bbr_bw_total[0][1], label='Total', color='#444444')
     p_plt.legend()
 
@@ -262,14 +268,16 @@ def plot_bbr_window(data, p_plt):
         p_plt.plot(data[0], data[4], label='Connection {}'.format(c))
         if len(data[0]) > 0:
             num_flows += 1
-    if len(bbr) > 2 and num_flows > 1:
+    if len(bbr) > 2 and num_flows > 1 and PLOT_TOTAL:
         p_plt.plot(total[1][0], total[1][1], label='Total', color='#444444')
     p_plt.legend()
+
 
 def plot_bbr_bdp(bbr, p_plt):
     for c in bbr:
         data = bbr[c]
         p_plt.plot(data[0], data[5], label='Connection {}'.format(c))
+
 
 def plot_cwnd(cwnd, p_plt):
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
