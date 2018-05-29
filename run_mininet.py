@@ -48,7 +48,21 @@ def print_timer(complete, current):
     sys.stdout.flush()
 
 
+def get_available_algorithms():
+    try:
+        return subprocess.check_output(['sysctl net.ipv4.tcp_available_congestion_control '
+                                        '| sed -ne "s/[^=]* = \(.*\)/\\1/p"'], shell=True)
+    except subprocess.CalledProcessError as e:
+        print('Cannot retrieve available congestion control algorithms.')
+        print(e)
+        return ''
+
+
 def parseConfigFile(file):
+    cc_algorithms = get_available_algorithms()
+
+    unknown_alorithms = []
+
     output = []
     f = open(file)
     for line in f:
@@ -71,6 +85,9 @@ def parseConfigFile(file):
             rtt = split[2].strip()
             start = float(split[3].strip())
             stop = float(split[4].strip())
+            if algorithm not in cc_algorithms and algorithm not in unknown_alorithms:
+                unknown_alorithms.append(algorithm)
+                continue
             output.append({
                 'command': command,
                 'algorithm': algorithm,
@@ -97,6 +114,11 @@ def parseConfigFile(file):
         else:
             print('Skip unknown command "{}" in line\n{}'.format(command, line))
             continue
+
+    if len(unknown_alorithms) > 0:
+        print('Uninstalled or unknown congestion control algorithm:\n  ' + ' '.join(unknown_alorithms))
+        print('Available algorithms:\n  ' + cc_algorithms.strip())
+
     return output
 
 
@@ -279,6 +301,9 @@ if __name__ == '__main__':
         sys.exit(-1)
 
     commands = parseConfigFile(args.config)
+    if len(commands) == 0:
+        print('No valid commands found in config file.\nExiting...')
+        sys.exit(-1)
 
     # setLogLevel('info')
     run_test(bandwidth=args.bandwidth,
