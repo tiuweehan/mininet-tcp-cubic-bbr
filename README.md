@@ -1,17 +1,12 @@
-# TCP Evaulation
+# TCP Evaluation
 
-## Mininet Testsuit
-
+## Mininet Framework
+To setup all required tools just run the following command as root:
 ```bash
-sudo apt-get install mininet
+./install.sh
 ```
 
-Some additional tools are required to be installed:
-```bash
-tcpdump, ethtool, netcat, moreutils
-```
-
-The execution of the mininet script requires root privileges.
+The execution of the mininet script also requires root privileges.
 ```bash
 usage: sudo run_mininet.py [-h] [-b BANDWIDTH] [-r RTT] [-d DIRECTORY]
                        [-s BUFFER_SIZE] [-l LATENCY] [-n NAME]
@@ -100,3 +95,10 @@ optional arguments:
   -r                    Process all sub-directories recursively.
   -n                    Only process new (unprocessed) directories.
 ```
+
+# Reference
+Dominik Scholz, Benedikt Jaeger, Lukas Schwaighofer, Daniel Raumer, FabienGeyer and Georg Carle.
+__Towards a Deeper Understanding of TCP BBR Congestion Control__, 
+2018, IFIP Networking 2018.
+[Available online](https://www.net.in.tum.de/fileadmin/bibtex/publications/papers/IFIP-Networking-2018-TCP-BBR.pdf). 
+[BibTeX](https://net.in.tum.de/publications/bibtex/ScholzJaeger2018BBR.bib).
