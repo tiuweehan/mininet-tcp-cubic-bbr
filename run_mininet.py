@@ -13,7 +13,14 @@ import argparse
 
 def get_git_revision_hash():
     try:
-        return subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.PIPE)
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.PIPE).rstrip()
+    except subprocess.CalledProcessError as e:
+        return 'unknown'
+
+
+def get_host_version():
+    try:
+        return subprocess.check_output(['uname', '-ovr'], stderr=subprocess.PIPE).rstrip()
     except subprocess.CalledProcessError as e:
         return 'unknown'
 
@@ -85,8 +92,9 @@ def parseConfigFile(file):
             rtt = split[2].strip()
             start = float(split[3].strip())
             stop = float(split[4].strip())
-            if algorithm not in cc_algorithms and algorithm not in unknown_alorithms:
-                unknown_alorithms.append(algorithm)
+            if algorithm not in cc_algorithms:
+                if algorithm not in unknown_alorithms:
+                    unknown_alorithms.append(algorithm)
                 continue
             output.append({
                 'command': command,
@@ -147,6 +155,16 @@ def check_tools():
     return len(missing_tools)
 
 
+def sleep_progress_bar(seconds, current_time, complete):
+    print_timer(complete=complete, current=current_time)
+    while seconds > 0:
+        time.sleep(min(1, seconds))
+        current_time = current_time + min(1, seconds)
+        print_timer(complete=complete, current=current_time)
+        seconds -= 1
+    return current_time
+
+
 def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_latency):
     duration = 0
     start_time = 0
@@ -161,26 +179,32 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    f = open(os.path.join('{}'.format(output_directory), 'parameters.txt'), 'w')
-    f.write('Test Name: {}\n'.format(name))
-    f.write('Date: {}\n'.format(time.strftime('%c')))
-    f.write('Initial Bandwidth: {}\n'.format(bandwidth))
-    f.write('Burst Buffer: {}\n'.format(buffer_size))
-    f.write('Buffer Latency: {}\n'.format(buffer_latency))
-    f.write('Git Commit: {}\n'.format(get_git_revision_hash()))
-    f.write('Commands: \n')
+    write_config = [
+        'Test Name: {}'.format(name),
+        'Date: {}'.format(time.strftime('%c')),
+        'Kernel: {}'.format(get_host_version()),
+        'Git Commit: {}'.format(get_git_revision_hash()),
+        'Initial Bandwidth: {}'.format(bandwidth),
+        'Burst Buffer: {}'.format(buffer_size),
+        'Buffer Latency: {}'.format(buffer_latency),
+        'Commands: '
+    ]
     for cmd in commands:
         start_time += cmd['start']
 
-        f.write('{}, '.format(cmd['command']))
+        config_line = '{}, '.format(cmd['command'])
         if cmd['command'] == 'link':
-            f.write('{}, {}, {}\n'.format(cmd['change'], cmd['value'], cmd['start']))
+            config_line += '{}, {}, {}'.format(cmd['change'], cmd['value'], cmd['start'])
         elif cmd['command'] == 'host':
             number_of_hosts += 1
-            f.write('{}, {}, {}, {}\n'.format(cmd['algorithm'], cmd['rtt'], cmd['start'], cmd['stop']))
+            config_line += '{}, {}, {}, {}'.format(cmd['algorithm'], cmd['rtt'], cmd['start'], cmd['stop'])
             if start_time + cmd['stop'] > duration:
                 duration = start_time + cmd['stop']
-    f.close()
+        write_config.append(config_line)
+
+    with open(os.path.join('{}'.format(output_directory), 'parameters.txt'), 'w') as f:
+        f.write('\n'.join(write_config))
+        f.close()
 
     print('-' * 60)
     print('Starting test: {}'.format(name))
@@ -222,12 +246,12 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
         # pull BBR values
-        # send.cmd('./ss_script.sh >> {}.bbr &'.format(os.path.join(output_directory, send.IP())))
         send.cmd('./ss_script.sh {} >> {}.bbr &'.format(poll_interval, os.path.join(output_directory, send.IP())))
 
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
         bandwidth, buffer_size, buffer_latency))
+
     s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(rtt))
     s2.cmd('./buffer_script.sh {0} {1} >> {2}.buffer &'.format(poll_interval, 's2-eth2',
                                                                os.path.join(output_directory, 's2-eth2-tbf')))
@@ -238,40 +262,32 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     host_counter = 0
     for cmd in commands:
         start = cmd['start']
-        time.sleep(start)
-
-        current_time = current_time + start
+        current_time = sleep_progress_bar(start, current_time=current_time, complete=complete)
 
         if cmd['command'] == 'link':
             s2 = net.get('s2')
             if cmd['change'] == 'bw':
                 s2.cmd('tc qdisc change dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
                     cmd['value'], buffer_size, buffer_latency))
-                print('Change bandwidth to {}.'.format(cmd['value']))
+                log_String = 'Change bandwidth to {}.'.format(cmd['value'])
             elif cmd['change'] == 'rtt':
                 s2.cmd('tc qdisc change dev s2-eth1 root netem delay {}'.format(cmd['value']))
-                print('Change rtt to {}.'.format(cmd['value']))
+                log_String = 'Change rtt to {}.'.format(cmd['value'])
 
         elif cmd['command'] == 'host':
             send = net.get('h{}'.format(host_counter))
             recv = net.get('r{}'.format(host_counter))
             timeout = cmd['stop']
-            print('h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP()))
+            log_String = 'h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
             send.cmd('timeout {} nc {} 9000 < /dev/urandom > /dev/null &'.format(timeout, recv.IP()))
             host_counter += 1
+        print(log_String + ' ' * (60 - len(log_String)))
 
-    time.sleep((complete - current_time) % 1)
-    current_time += (complete - current_time) % 1
-
-    while current_time < complete:
-        time.sleep(1)
-        current_time = current_time + 1
-        print_timer(complete=complete, current=current_time)
+    current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
+    current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
 
     print('')
     net.stop()
-
-    # TODO: set write permissions
 
 
 if __name__ == '__main__':
@@ -287,7 +303,7 @@ if __name__ == '__main__':
     parser.add_argument('-r', dest='rtt',
                         default='0ms', help='Initial rtt for all flows. (default 0ms)')
     parser.add_argument('-d', dest='directory',
-                        default='test/', help='Path to the output directory. (default: .)')
+                        default='test/', help='Path to the output directory. (default: test/)')
     parser.add_argument('-s', dest='buffer_size',
                         default='1600b', help='Burst size of the token bucket filter. (default: 1600b)')
     parser.add_argument('-l', dest='latency',
