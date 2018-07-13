@@ -31,7 +31,7 @@ The configuration file is a text file formatted as follows
 host, <algorithm>, <rtt>, <start>, <stop>
 ```
 Add a new TCP stream using 'algorithm' for congestion control with 'rtt'.
-The flow starts after 'start' seconds and ends 'stop' seconds afterwards.
+The flow starts after 'start' seconds after the last command and ends 'stop' seconds later.
 
 ```
 link, <type>, <value>, <start>
@@ -40,6 +40,16 @@ Change the properties of the bottleneck link. The 'type' can either be bw for ba
 The 'value' gives the new value for the link and 'start' sets the delay after which the change is applied. 
 
 ### Example
+Make sure that the used congestion control algorithms are available by running
+```
+sysctl net.ipv4.tcp_available_congestion_control
+```
+If this is not the case you might just run the specific kernel module, e.g. for BBR run
+```
+modprobe tcp_bbr
+```
+
+As a first example you can use the following config file
 ```
 host, bbr, 40ms, 0, 40
 host, cubic, 50ms, 5, 30
