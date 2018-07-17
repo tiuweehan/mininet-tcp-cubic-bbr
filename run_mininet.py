@@ -3,6 +3,7 @@ from mininet.net import Mininet
 from mininet.link import TCLink
 from mininet.log import setLogLevel
 from mininet.cli import CLI
+from mininet.clean import cleanup
 
 import os
 import sys
@@ -165,16 +166,12 @@ def sleep_progress_bar(seconds, current_time, complete):
     return current_time
 
 
-def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_latency):
+def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buffer_latency, poll_interval):
     duration = 0
     start_time = 0
     number_of_hosts = 0
 
-    poll_interval = 0.04
-
-    output_directory = os.path.join(directory, '{}_{}'.format(
-        time.strftime('%m%d_%H%M%S'), name
-    ))
+    output_directory = os.path.join(directory, '{}_{}'.format(time.strftime('%m%d_%H%M%S'), name))
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -252,7 +249,10 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
         bandwidth, buffer_size, buffer_latency))
 
-    s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(rtt))
+    netem_running = False
+    if initial_rtt != '0ms':
+        netem_running = True
+        s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(initial_rtt))
     s2.cmd('./buffer_script.sh {0} {1} >> {2}.buffer &'.format(poll_interval, 's2-eth2',
                                                                os.path.join(output_directory, 's2-eth2-tbf')))
 
@@ -260,34 +260,42 @@ def run_test(commands, directory, name, bandwidth, rtt, buffer_size, buffer_late
     current_time = 0
 
     host_counter = 0
-    for cmd in commands:
-        start = cmd['start']
-        current_time = sleep_progress_bar(start, current_time=current_time, complete=complete)
 
-        if cmd['command'] == 'link':
-            s2 = net.get('s2')
-            if cmd['change'] == 'bw':
-                s2.cmd('tc qdisc change dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
-                    cmd['value'], buffer_size, buffer_latency))
-                log_String = 'Change bandwidth to {}.'.format(cmd['value'])
-            elif cmd['change'] == 'rtt':
-                s2.cmd('tc qdisc change dev s2-eth1 root netem delay {}'.format(cmd['value']))
-                log_String = 'Change rtt to {}.'.format(cmd['value'])
+    try:
+        for cmd in commands:
+            start = cmd['start']
+            current_time = sleep_progress_bar(start, current_time=current_time, complete=complete)
 
-        elif cmd['command'] == 'host':
-            send = net.get('h{}'.format(host_counter))
-            recv = net.get('r{}'.format(host_counter))
-            timeout = cmd['stop']
-            log_String = 'h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
-            send.cmd('timeout {} nc {} 9000 < /dev/urandom > /dev/null &'.format(timeout, recv.IP()))
-            host_counter += 1
-        print(log_String + ' ' * (60 - len(log_String)))
+            if cmd['command'] == 'link':
+                s2 = net.get('s2')
+                if cmd['change'] == 'bw':
+                    s2.cmd('tc qdisc change dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
+                        cmd['value'], buffer_size, buffer_latency))
+                    log_String = 'Change bandwidth to {}.'.format(cmd['value'])
+                elif cmd['change'] == 'rtt':
+                    if netem_running:
+                        s2.cmd('tc qdisc change dev s2-eth1 root netem delay {}'.format(cmd['value']))
+                    else:
+                        s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(cmd['value']))
+                    log_String = 'Change rtt to {}.'.format(cmd['value'])
 
-    current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
-    current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
+            elif cmd['command'] == 'host':
+                send = net.get('h{}'.format(host_counter))
+                recv = net.get('r{}'.format(host_counter))
+                timeout = cmd['stop']
+                log_String = 'h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
+                send.cmd('timeout {} nc {} 9000 < /dev/urandom > /dev/null &'.format(timeout, recv.IP()))
+                host_counter += 1
+            print(log_String + ' ' * (60 - len(log_String)))
 
-    print('')
-    net.stop()
+        current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
+        current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
+    except (KeyboardInterrupt, Exception) as e:
+        print(e)
+    finally:
+        print('\nExiting...')
+        net.stop()
+        cleanup()
 
 
 if __name__ == '__main__':
@@ -310,6 +318,8 @@ if __name__ == '__main__':
                         default='100ms', help='Maximum latency at the bottleneck buffer. (default: 100ms)')
     parser.add_argument('-n', dest='name',
                         default='TCP', help='Name of the output directory. (default: TCP)')
+    parser.add_argument('--poll-interval', dest='poll_interval', type=float,
+                        default=0.04, help='Interval to poll TCP values and buffer backlog in seconds. (default: 0.04)')
 
     args = parser.parse_args()
     if not os.path.isfile(args.config):
@@ -323,9 +333,10 @@ if __name__ == '__main__':
 
     # setLogLevel('info')
     run_test(bandwidth=args.bandwidth,
-             rtt=args.rtt,
+             initial_rtt=args.rtt,
              commands=commands,
              buffer_size=args.buffer_size,
              buffer_latency=args.latency,
              name=args.name,
-             directory=args.directory)
+             directory=args.directory,
+             poll_interval=args.poll_interval)
