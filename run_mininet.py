@@ -10,6 +10,7 @@ import sys
 import subprocess
 import time
 import argparse
+import re
 
 
 def get_git_revision_hash():
@@ -215,10 +216,11 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
 
     # start tcp dump
     try:
+        FNULL = open(os.devnull, 'w')
         subprocess.Popen(['tcpdump', '-i', 's1-eth1', '-n', 'tcp', '-s', '88',
-                          '-w', os.path.join(output_directory, 's1.pcap')])
+                          '-w', os.path.join(output_directory, 's1.pcap')], stderr=FNULL)
         subprocess.Popen(['tcpdump', '-i', 's3-eth1', '-n', 'tcp', '-s', '88',
-                          '-w', os.path.join(output_directory, 's3.pcap')])
+                          '-w', os.path.join(output_directory, 's3.pcap')], stderr=FNULL)
     except Exception as e:
         print('Error on starting tcpdump\n{}'.format(e))
         exit(1)
@@ -298,6 +300,44 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         cleanup()
 
 
+def verify_arguments(args, commands):
+    verified = True
+
+    verified &= verify('rate', args.bandwidth)
+    verified &= verify('time', args.rtt)
+    verified &= verify('size', args.buffer_size)
+    verified &= verify('time', args.latency)
+
+    for c in commands:
+        if c['command'] == 'link':
+            if c['change'] == 'bw':
+                verified &= verify('rate', c['value'])
+            elif c['change'] == 'rtt':
+                verified &= verify('time', c['value'])
+        elif c['command'] == 'host':
+            verified &= verify('time', c['rtt'])
+
+    return verified
+
+
+def verify(type, value):
+    if type == 'rate':
+        allowed = ['bit', 'kbit', 'mbit', 'bps', 'kbps', 'mbps']
+    elif type == 'time':
+        allowed = ['s', 'ms', 'us']
+    elif type == 'size':
+        allowed = ['b', 'kbit', 'mbit', 'kb', 'k', 'mb', 'm']
+    else:
+        allowed = []  # Unknown type
+
+    si = re.sub('^([0-9]+\.)?[0-9]+', '', value).lower()
+
+    if si not in allowed:
+        print('Malformed {} unit: {} not in {}'.format(type, value, list(allowed)))
+        return False
+    return True
+
+
 if __name__ == '__main__':
 
     if check_tools() > 0:
@@ -322,14 +362,19 @@ if __name__ == '__main__':
                         default=0.04, help='Interval to poll TCP values and buffer backlog in seconds. (default: 0.04)')
 
     args = parser.parse_args()
+
     if not os.path.isfile(args.config):
-        print('Config file missing:\n{}'.format(args.config))
-        sys.exit(-1)
+        print('Config file missing: {}'.format(args.config))
+        sys.exit(128)
 
     commands = parseConfigFile(args.config)
     if len(commands) == 0:
-        print('No valid commands found in config file.\nExiting...')
-        sys.exit(-1)
+        print('No valid commands found in config file.')
+        sys.exit(128)
+
+    if not verify_arguments(args, commands):
+        print('Please fix malformed parameters.')
+        sys.exit(128)
 
     # setLogLevel('info')
     run_test(bandwidth=args.bandwidth,
