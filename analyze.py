@@ -34,6 +34,9 @@ def main():
                         help='Only process new (unprocessed) directories.')
     parser.add_argument('--hide-total', dest='hide_total', action='store_true',
                         help='Hide total values in plots for sending rate, throughput, ...')
+    parser.add_argument('--skip-retransmission', dest='skip_retransmission', action='store_true',
+                        help='Skip the stacked bar diagrams showing the retransmissions. This is useful when'
+                             'running many flows.')
     args = parser.parse_args()
 
     path = args.path
@@ -85,7 +88,7 @@ def main():
 
         if 'pdf' in args.output:
             print('Creating plots ...')
-            plot_all(path, pcap_data, hide_total=args.hide_total)
+            plot_all(path, pcap_data, hide_total=args.hide_total, skip_retransmission=args.skip_retransmission)
 
 
 def parse_pcap(path, pcap_file1, pcap_file2, delta_t):

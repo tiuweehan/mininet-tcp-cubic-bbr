@@ -22,7 +22,7 @@ class Plot:
         self.unit = unit
 
 
-def plot_all(path, pcap_data, hide_total=False):
+def plot_all(path, pcap_data, hide_total=False, skip_retransmission=False):
 
     global PLOT_TOTAL
     PLOT_TOTAL = not hide_total
@@ -63,9 +63,13 @@ def plot_all(path, pcap_data, hide_total=False):
             Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
         ]
 
+    if not skip_retransmission:
+        plots += [
+            Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
+            # Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+        ]
+
     plots += [
-        Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
-        # Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
         Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms'),
         Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms'),
         Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit'),
