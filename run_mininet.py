@@ -13,6 +13,21 @@ import argparse
 import re
 
 
+MAX_HOST_NUMBER = 256**2
+
+
+def print_error(line):
+    print('\x1b[1;31;40m{}\x1b[0m'.format(line))
+
+
+def print_warning(line):
+    print('\x1b[1;33;40m{}\x1b[0m'.format(line))
+
+
+def print_success(line):
+    print('\x1b[1;32;40m{}\x1b[0m'.format(line))
+
+
 def get_git_revision_hash():
     try:
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.PIPE).rstrip()
@@ -48,12 +63,21 @@ class DumbbellTopo(Topo):
 def print_timer(complete, current):
     share = current * 100.0 / complete
 
-    string = '  {: 5.2f}% ['.format(share)
+    string = '  {:6.2f}%'.format(share)
+    if complete == current:
+        string = '{}{}{}'.format('\x1b[1;32;40m', string, '\x1b[0m')
+
+    string += ' ['
     string += '=' * int(share / 10 * 3)
     string += ' ' * (30 - int(share / 10 * 3))
-    string += '] {: 4}s remaining   '.format(complete - current)
+    string += '] {:6.1f}s remaining'.format(complete - current)
 
-    sys.stdout.write('%s\r' % string)
+    if complete != current:
+        string += '\r'
+    else:
+        string += '\n'
+
+    sys.stdout.write(string)
     sys.stdout.flush()
 
 
@@ -62,8 +86,8 @@ def get_available_algorithms():
         return subprocess.check_output(['sysctl net.ipv4.tcp_available_congestion_control '
                                         '| sed -ne "s/[^=]* = \(.*\)/\\1/p"'], shell=True)
     except subprocess.CalledProcessError as e:
-        print('Cannot retrieve available congestion control algorithms.')
-        print(e)
+        print_error('Cannot retrieve available congestion control algorithms.')
+        print_error(e)
         return ''
 
 
@@ -71,7 +95,7 @@ def parseConfigFile(file):
     cc_algorithms = get_available_algorithms()
 
     unknown_alorithms = []
-
+    number_of_hosts = 0
     output = []
     f = open(file)
     for line in f:
@@ -88,7 +112,7 @@ def parseConfigFile(file):
 
         if command == 'host':
             if len(split) != 5:
-                print('Too few arguments to add host in line\n{}'.format(line))
+                print_warning('Too few arguments to add host in line\n{}'.format(line))
                 continue
             algorithm = split[1].strip()
             rtt = split[2].strip()
@@ -98,6 +122,12 @@ def parseConfigFile(file):
                 if algorithm not in unknown_alorithms:
                     unknown_alorithms.append(algorithm)
                 continue
+
+            if number_of_hosts >= MAX_HOST_NUMBER:
+                print_warning('Max host number reached. Skipping further hosts.')
+                continue
+
+            number_of_hosts += 1
             output.append({
                 'command': command,
                 'algorithm': algorithm,
@@ -107,11 +137,11 @@ def parseConfigFile(file):
 
         elif command == 'link':
             if len(split) != 4:
-                print('Too few arguments to change link in line\n{}'.format(line))
+                print_warning('Too few arguments to change link in line\n{}'.format(line))
                 continue
             change = split[1].strip()
             if change != 'bw' and change != 'rtt':
-                print('Unknown link option "{} in line\n{}'.format(change, line))
+                print_warning('Unknown link option "{} in line\n{}'.format(change, line))
                 continue
             value = split[2].strip()
             start = float(split[3].strip())
@@ -122,12 +152,12 @@ def parseConfigFile(file):
                 'start': start
             })
         else:
-            print('Skip unknown command "{}" in line\n{}'.format(command, line))
+            print_warning('Skip unknown command "{}" in line\n{}'.format(command, line))
             continue
 
     if len(unknown_alorithms) > 0:
-        print('Uninstalled or unknown congestion control algorithm:\n  ' + ' '.join(unknown_alorithms))
-        print('Available algorithms:\n  ' + cc_algorithms.strip())
+        print_warning('Skipping uninstalled congestion control algorithm:\n  ' + ' '.join(unknown_alorithms))
+        print_warning('Available algorithms:\n  ' + cc_algorithms.strip())
 
     return output
 
@@ -151,8 +181,8 @@ def check_tools():
             missing_tools.append(package)
 
     if len(missing_tools) > 0:
-        print('Missing tools. Please run')
-        print('  apt install ' + ' '.join(missing_tools))
+        print_error('Missing tools. Please run')
+        print_error('  apt install ' + ' '.join(missing_tools))
 
     return len(missing_tools)
 
@@ -204,9 +234,9 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         f.write('\n'.join(write_config))
         f.close()
 
-    print('-' * 60)
+    text_width = 60
+    print('-' * text_width)
     print('Starting test: {}'.format(name))
-    print('{}'.format(time.strftime('%c')))
     print('Total duration: {}s'.format(duration))
 
     time.sleep(1)
@@ -222,8 +252,8 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         subprocess.Popen(['tcpdump', '-i', 's3-eth1', '-n', 'tcp', '-s', '88',
                           '-w', os.path.join(output_directory, 's3.pcap')], stderr=FNULL)
     except Exception as e:
-        print('Error on starting tcpdump\n{}'.format(e))
-        exit(1)
+        print_error('Error on starting tcpdump\n{}'.format(e))
+        sys.exit(1)
 
     time.sleep(1)
 
@@ -232,9 +262,9 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         if cmd['command'] != 'host':
             continue
         send = net.get('h{}'.format(host_counter))
-        send.setIP('10.1.0.{}/8'.format(host_counter))
+        send.setIP('10.1.{}.{}/8'.format(host_counter / 256, host_counter % 256))
         recv = net.get('r{}'.format(host_counter))
-        recv.setIP('10.2.0.{}/8'.format(host_counter))
+        recv.setIP('10.2.{}.{}/8'.format(host_counter / 256, host_counter % 256))
         host_counter += 1
 
         # setup FQ, algorithm, netem, nc host
@@ -273,31 +303,33 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
                 if cmd['change'] == 'bw':
                     s2.cmd('tc qdisc change dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
                         cmd['value'], buffer_size, buffer_latency))
-                    log_String = 'Change bandwidth to {}.'.format(cmd['value'])
+                    log_String = '  Change bandwidth to {}.'.format(cmd['value'])
                 elif cmd['change'] == 'rtt':
                     if netem_running:
                         s2.cmd('tc qdisc change dev s2-eth1 root netem delay {}'.format(cmd['value']))
                     else:
+                        netem_running = True
                         s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(cmd['value']))
-                    log_String = 'Change rtt to {}.'.format(cmd['value'])
+                    log_String = '  Change rtt to {}.'.format(cmd['value'])
 
             elif cmd['command'] == 'host':
                 send = net.get('h{}'.format(host_counter))
                 recv = net.get('r{}'.format(host_counter))
                 timeout = cmd['stop']
-                log_String = 'h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
+                log_String = '  h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
                 send.cmd('timeout {} nc {} 9000 < /dev/urandom > /dev/null &'.format(timeout, recv.IP()))
                 host_counter += 1
-            print(log_String + ' ' * (60 - len(log_String)))
+            print(log_String + ' ' * (text_width - len(log_String)))
 
         current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
         current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
     except (KeyboardInterrupt, Exception) as e:
-        print(e)
+        print_error(e)
     finally:
-        print('\nExiting...')
         net.stop()
         cleanup()
+
+    print('-' * text_width)
 
 
 def verify_arguments(args, commands):
@@ -333,13 +365,12 @@ def verify(type, value):
     si = re.sub('^([0-9]+\.)?[0-9]+', '', value).lower()
 
     if si not in allowed:
-        print('Malformed {} unit: {} not in {}'.format(type, value, list(allowed)))
+        print_error('Malformed {} unit: {} not in {}'.format(type, value, list(allowed)))
         return False
     return True
 
 
 if __name__ == '__main__':
-
     if check_tools() > 0:
         exit(1)
 
@@ -364,16 +395,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not os.path.isfile(args.config):
-        print('Config file missing: {}'.format(args.config))
+        print_error('Config file missing: {}'.format(args.config))
         sys.exit(128)
 
     commands = parseConfigFile(args.config)
     if len(commands) == 0:
-        print('No valid commands found in config file.')
+        print_error('No valid commands found in config file.')
         sys.exit(128)
 
     if not verify_arguments(args, commands):
-        print('Please fix malformed parameters.')
+        print_error('Please fix malformed parameters.')
         sys.exit(128)
 
     # setLogLevel('info')
