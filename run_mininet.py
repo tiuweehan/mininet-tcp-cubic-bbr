@@ -32,6 +32,7 @@ def get_git_revision_hash():
     try:
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.PIPE).rstrip()
     except subprocess.CalledProcessError as e:
+        print_error(e)
         return 'unknown'
 
 
@@ -39,6 +40,7 @@ def get_host_version():
     try:
         return subprocess.check_output(['uname', '-ovr'], stderr=subprocess.PIPE).rstrip()
     except subprocess.CalledProcessError as e:
+        print_error(e)
         return 'unknown'
 
 
@@ -65,7 +67,7 @@ def print_timer(complete, current):
 
     string = '  {:6.2f}%'.format(share)
     if complete == current:
-        string = '{}{}{}'.format('\x1b[1;32;40m', string, '\x1b[0m')
+        string = '\x1b[1;32;40m' + string + '\x1b[0m'
 
     string += ' ['
     string += '=' * int(share / 10 * 3)
@@ -239,10 +241,14 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
     print('Starting test: {}'.format(name))
     print('Total duration: {}s'.format(duration))
 
-    time.sleep(1)
-    topo = DumbbellTopo(number_of_hosts)
-    net = Mininet(topo=topo, link=TCLink)
-    net.start()
+    try:
+        topo = DumbbellTopo(number_of_hosts)
+        net = Mininet(topo=topo, link=TCLink)
+        net.start()
+    except Exception as e:
+        print_error('Could not start Mininet:')
+        print_error(e)
+        sys.exit(1)
 
     # start tcp dump
     try:
@@ -324,7 +330,10 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
         current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
     except (KeyboardInterrupt, Exception) as e:
-        print_error(e)
+        if isinstance(e, KeyboardInterrupt):
+            print_warning('\nReceived keyboard interrupt. Stop Mininet.')
+        else:
+            print_error(e)
     finally:
         net.stop()
         cleanup()
