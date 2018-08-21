@@ -160,6 +160,11 @@ def parseConfigFile(file):
     if len(unknown_alorithms) > 0:
         print_warning('Skipping uninstalled congestion control algorithm:\n  ' + ' '.join(unknown_alorithms))
         print_warning('Available algorithms:\n  ' + cc_algorithms.strip())
+        print_warning('Start Test anyway in 10s. (Press ^C to interrupt)')
+        try:
+            time.sleep(10)
+        except KeyboardInterrupt:
+            sys.exit(1)
 
     return output
 
