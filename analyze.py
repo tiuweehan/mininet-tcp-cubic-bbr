@@ -47,7 +47,7 @@ def main():
     directory = args.directory
 
     paths = []
-    plots = []
+    plots = PLOT_TYPES
 
     if args.added_plots is not None:
         plots = args.added_plots

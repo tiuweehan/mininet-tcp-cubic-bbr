@@ -17,7 +17,7 @@ PLOT_TYPES = [
     'sending_rate',
     'throughput',
     'fairness',
-    'retransmissions',
+    'retransmission',
     'avg_rtt',
     'rtt',
     'inflight',
@@ -88,7 +88,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, skip_retransmission=F
             Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index")
         ]
 
-    if 'retransmissions' in plot_only and not skip_retransmission:
+    if 'retransmission' in plot_only and not skip_retransmission:
         plots += [
             Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
             #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
