@@ -13,6 +13,24 @@ PLOT_PATH = 'pdf_plots'
 PLOT_TOTAL = True
 
 
+PLOT_TYPES = [
+    'sending_rate',
+    'throughput',
+    'fairness',
+    'retransmissions',
+    'avg_rtt',
+    'rtt',
+    'inflight',
+    'cwnd',
+    'buffer_backlog',
+    'bdp',
+    'btl_bw',
+    'rt_prop',
+    'window_gain',
+    'pacing_gain',
+]
+
+
 class Plot:
     def __init__(self, data, plot_function, file_name, plot_name, unit):
         self.data = data
@@ -22,7 +40,7 @@ class Plot:
         self.unit = unit
 
 
-def plot_all(path, pcap_data, hide_total=False, skip_retransmission=False):
+def plot_all(path, pcap_data, plot_only, hide_total=False, skip_retransmission=False):
 
     global PLOT_TOTAL
     PLOT_TOTAL = not hide_total
@@ -53,30 +71,50 @@ def plot_all(path, pcap_data, hide_total=False, skip_retransmission=False):
     for t in throughput:
         t_max = max(t_max, throughput[t][0][-1])
 
-    plots = [
-        Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s'),
-        Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s'),
-    ]
+    plots = []
 
-    if len(sending_rate.keys()) > 2:
+    if 'sending_rate' in plot_only:
         plots += [
-            Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index"),
+            Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s')
         ]
 
-    if not skip_retransmission:
+    if 'throughput' in plot_only:
+        plots += [
+            Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s')
+        ]
+
+    if 'fairness' in plot_only and len(sending_rate.keys()) > 2:
+        plots += [
+            Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index")
+        ]
+
+    if 'retransmissions' in plot_only and not skip_retransmission:
         plots += [
             Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
-            # Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+            #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
         ]
 
-    plots += [
-        Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms'),
-        Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms'),
-        Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit'),
-        Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND', 'MSS')
-    ]
+    if 'avg_rtt' in plot_only:
+        plots += [
+            Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms')
+        ]
 
-    if len(buffer_backlog) > 0:
+    if 'rtt' in plot_only:
+        plots += [
+            Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms')
+        ]
+
+    if 'inflight' in plot_only:
+        plots += [
+            Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit')
+        ]
+
+    if 'cwnd' in plot_only:
+        plots += [
+            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND', 'MSS')
+        ]
+
+    if 'buffer_backlog' in plot_only and len(buffer_backlog) > 0:
         plots += [
             Plot((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog', 'bit')
         ]
@@ -87,19 +125,35 @@ def plot_all(path, pcap_data, hide_total=False, skip_retransmission=False):
             has_bbr = True
             break
 
-    if has_bbr:
+    if 'bdp' in plot_only and has_bbr:
         plots += [
             Plot(bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP', 'bit'),
-            #Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
+            # Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
+        ]
+
+    if 'btl_bw' in plot_only and has_bbr:
+        plots += [
             Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw', 'bit/s'),
+        ]
+
+    if 'rt_prop' in plot_only and has_bbr:
+        plots += [
             Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'rt_prop', 'ms'),
+        ]
+
+    if 'window_gain' in plot_only and has_bbr:
+        plots += [
             Plot((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain', ''),
+        ]
+
+    if 'pacing_gain' in plot_only and has_bbr:
+        plots += [
             Plot((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain', '')
         ]
 
     grid_tick_maior_interval = 10
     grid_tick_minor_interval = 2
-    grid_tick_max_value = max(retransmissions_interval[len(retransmissions_interval) - 1][0])
+    grid_tick_max_value = sending_rate[len(sending_rate) - 1][0][-1]
     """
     for plot in plots:
         f, ax = plt.subplots(1)
@@ -116,7 +170,12 @@ def plot_all(path, pcap_data, hide_total=False, skip_retransmission=False):
         print("  *  {} created".format(plot[2]))
         """
     f, axarr = plt.subplots(len(plots), sharex=True)
-    f.set_size_inches(20, 55)
+
+    if len(plots) == 1:
+        axarr = [axarr]
+
+    pdf_height = 55.0 * float(len(plots)) / len(PLOT_TYPES)
+    f.set_size_inches(20, pdf_height)
 
     print("  *  create plot_complete.pdf")
     for i, plot in enumerate(plots):

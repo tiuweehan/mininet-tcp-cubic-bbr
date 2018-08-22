@@ -6,23 +6,23 @@ import sys
 
 from helper.csv_writer import write_to_csv, read_from_csv, CSV_PATH
 from helper.pcap_data import PcapData, DataInfo
-from helper.create_plots import plot_all, PLOT_PATH
+from helper.create_plots import plot_all, PLOT_PATH, PLOT_TYPES
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', metavar='PATH',
-                        help='path to the working directory')
+    parser.add_argument('-d --directory', dest='directory',
+                        default='.', help='Path to the working directory (default: .)')
     parser.add_argument('-s', dest='source',
                         choices=['pcap', 'csv'],
                         default='pcap', help='Create plots from csv or pcap')
     parser.add_argument('-o', dest='output',
                         choices=['pdf+csv', 'pdf', 'csv'],
                         default='pdf+csv', help='Output Format (default: pdf+csv)')
-    parser.add_argument('-p1', dest='pcap1',
+    parser.add_argument('--pcap1', dest='pcap1',
                         default='s1.pcap', help='Filename of the pcap before the bottleneck '
                                                 '(default: s1.pcap)')
-    parser.add_argument('-p2', dest='pcap2',
+    parser.add_argument('--pcap2', dest='pcap2',
                         default='s3.pcap', help='Filename of the pcap behind the bottleneck '
                                                 '(default: s3.pcap)')
     parser.add_argument('-t', dest='delta_t',
@@ -37,14 +37,26 @@ def main():
     parser.add_argument('--skip-retransmission', dest='skip_retransmission', action='store_true',
                         help='Skip the stacked bar diagrams showing the retransmissions. This is useful when'
                              'running many flows.')
+    parser.add_argument('-a --add-plot', action='append', choices=PLOT_TYPES, dest='added_plots',
+                        help='Add a plot to the final PDF output. This is overwritten by the -i option if both are given.')
+    parser.add_argument('-i --ignore-plot', action='append', choices=PLOT_TYPES, dest='ignored_plots',
+                        help='Remove a plot from the PDF output. This overwrites the -a option.')
+
     args = parser.parse_args()
 
-    path = args.path
+    directory = args.directory
 
     paths = []
+    plots = []
+
+    if args.added_plots is not None:
+        plots = args.added_plots
+
+    if args.ignored_plots is not None:
+        plots = [p for p in PLOT_TYPES if p not in args.ignored_plots]
 
     if args.recursive:
-        for subdirs, _, _ in os.walk(path):
+        for subdirs, _, _ in os.walk(directory):
             pcap1 = os.path.join(subdirs, args.pcap1)
             pcap2 = os.path.join(subdirs, args.pcap2)
             if os.path.isfile(pcap1) and os.path.isfile(pcap2):
@@ -57,38 +69,38 @@ def main():
                     paths.append(subdirs)
         print('Found {} pcaps in sub directories.'.format(len(paths)))
     else:
-        paths = [path]
+        paths = [directory]
 
     paths = sorted(paths)
 
-    for i, path in enumerate(paths):
+    for i, directory in enumerate(paths):
 
         if args.source is 'pcap':
-            if not os.path.isfile(os.path.join(path, args.pcap1)):
-                print("File not found: {}".format(os.path.join(path, args.pcap1)))
+            if not os.path.isfile(os.path.join(directory, args.pcap1)):
+                print("File not found: {}".format(os.path.join(directory, args.pcap1)))
                 return
-            if not os.path.isfile(os.path.join(path, args.pcap2)):
-                print("File not found: {}".format(os.path.join(path, args.pcap2)))
+            if not os.path.isfile(os.path.join(directory, args.pcap2)):
+                print("File not found: {}".format(os.path.join(directory, args.pcap2)))
                 return
 
-            print('{}/{} Reading pcap {}'.format(i + 1, len(paths), path))
-            pcap_data = parse_pcap(path=path,
+            print('{}/{} Reading pcap {}'.format(i + 1, len(paths), directory))
+            pcap_data = parse_pcap(path=directory,
                                    pcap_file1=args.pcap1,
                                    pcap_file2=args.pcap2,
                                    delta_t=float(args.delta_t))
 
             if 'csv' in args.output:
                 print('Writing to csv ...')
-                write_to_csv(path, pcap_data)
+                write_to_csv(directory, pcap_data)
         else:
-            print('{}/{} Reading csv {}'.format(i + 1, len(paths), path))
-            pcap_data = read_from_csv(path)
+            print('{}/{} Reading csv {}'.format(i + 1, len(paths), directory))
+            pcap_data = read_from_csv(directory)
             if pcap_data == -1:
                 continue
 
         if 'pdf' in args.output:
             print('Creating plots ...')
-            plot_all(path, pcap_data, hide_total=args.hide_total, skip_retransmission=args.skip_retransmission)
+            plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total, skip_retransmission=args.skip_retransmission)
 
 
 def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
