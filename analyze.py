@@ -3,10 +3,16 @@ import dpkt
 import socket
 import os
 import sys
+import glob
+import gzip
 
-from helper.csv_writer import write_to_csv, read_from_csv, CSV_PATH
+from helper.csv_writer import write_to_csv, read_from_csv
 from helper.pcap_data import PcapData, DataInfo
-from helper.create_plots import plot_all, PLOT_PATH, PLOT_TYPES
+from helper.create_plots import plot_all
+from helper.util import check_directory
+
+from helper import PCAP1, PCAP2, PLOT_PATH, CSV_PATH, PLOT_TYPES
+from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION
 
 
 def main():
@@ -19,12 +25,6 @@ def main():
     parser.add_argument('-o', dest='output',
                         choices=['pdf+csv', 'pdf', 'csv'],
                         default='pdf+csv', help='Output Format (default: pdf+csv)')
-    parser.add_argument('--pcap1', dest='pcap1',
-                        default='s1.pcap', help='Filename of the pcap before the bottleneck '
-                                                '(default: s1.pcap)')
-    parser.add_argument('--pcap2', dest='pcap2',
-                        default='s3.pcap', help='Filename of the pcap behind the bottleneck '
-                                                '(default: s3.pcap)')
     parser.add_argument('-t', dest='delta_t',
                         default='0.2', help='Interval in seconds for computing average throughput,... '
                                             '(default: 0.2)')
@@ -34,13 +34,12 @@ def main():
                         help='Only process new (unprocessed) directories.')
     parser.add_argument('--hide-total', dest='hide_total', action='store_true',
                         help='Hide total values in plots for sending rate, throughput, ...')
-    parser.add_argument('--skip-retransmission', dest='skip_retransmission', action='store_true',
-                        help='Skip the stacked bar diagrams showing the retransmissions. This is useful when'
-                             'running many flows.')
     parser.add_argument('-a --add-plot', action='append', choices=PLOT_TYPES, dest='added_plots',
                         help='Add a plot to the final PDF output. This is overwritten by the -i option if both are given.')
     parser.add_argument('-i --ignore-plot', action='append', choices=PLOT_TYPES, dest='ignored_plots',
                         help='Remove a plot from the PDF output. This overwrites the -a option.')
+    parser.add_argument('--no-compression', dest='no_compression', action='store_true',
+                        help='Do not compress the output files.')
 
     args = parser.parse_args()
 
@@ -57,16 +56,9 @@ def main():
 
     if args.recursive:
         for subdirs, _, _ in os.walk(directory):
-            pcap1 = os.path.join(subdirs, args.pcap1)
-            pcap2 = os.path.join(subdirs, args.pcap2)
-            if os.path.isfile(pcap1) and os.path.isfile(pcap2):
-                unprocessed = True
-                if args.new:
-                    csv_path = os.path.join(subdirs, CSV_PATH)
-                    pdf_path = os.path.join(subdirs, PLOT_PATH)
-                    unprocessed = not os.path.exists(csv_path) or not os.path.exists(pdf_path)
-                if unprocessed:
-                    paths.append(subdirs)
+            if check_directory(subdirs, only_new=args.new):
+                paths.append(subdirs)
+
         print('Found {} pcaps in sub directories.'.format(len(paths)))
     else:
         paths = [directory]
@@ -76,22 +68,13 @@ def main():
     for i, directory in enumerate(paths):
 
         if args.source is 'pcap':
-            if not os.path.isfile(os.path.join(directory, args.pcap1)):
-                print("File not found: {}".format(os.path.join(directory, args.pcap1)))
-                return
-            if not os.path.isfile(os.path.join(directory, args.pcap2)):
-                print("File not found: {}".format(os.path.join(directory, args.pcap2)))
-                return
 
             print('{}/{} Reading pcap {}'.format(i + 1, len(paths), directory))
-            pcap_data = parse_pcap(path=directory,
-                                   pcap_file1=args.pcap1,
-                                   pcap_file2=args.pcap2,
-                                   delta_t=float(args.delta_t))
+            pcap_data = parse_pcap(path=directory, delta_t=float(args.delta_t))
 
             if 'csv' in args.output:
                 print('Writing to csv ...')
-                write_to_csv(directory, pcap_data)
+                write_to_csv(directory, pcap_data, compression=not args.no_compression)
         else:
             print('{}/{} Reading csv {}'.format(i + 1, len(paths), directory))
             pcap_data = read_from_csv(directory)
@@ -100,27 +83,19 @@ def main():
 
         if 'pdf' in args.output:
             print('Creating plots ...')
-            plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total, skip_retransmission=args.skip_retransmission)
+            plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total)
 
 
-def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
-    file_name1 = os.path.join(path, pcap_file1)
-    file_name2 = os.path.join(path, pcap_file2)
-
+def parse_pcap(path, delta_t):
     print("Processing: {}".format(path))
 
-    files_exist = True
-    for f in [file_name1, file_name2]:
-        if os.path.isfile(f):
-            pass
-        else:
-            print("File Missing: {}".format(f))
-            files_exist = False
+    pcap1 = os.path.join(path, PCAP1 + ZIP_FILE_EXTENSION)
+    if not os.path.exists(pcap1):
+        pcap1 = os.path.join(path, PCAP1)
+        f = open(pcap1)
+    else:
+        f = gzip.open(pcap1)
 
-    if not files_exist:
-        sys.exit(-1)
-
-    f = open(file_name1)
     pcap = dpkt.pcap.Reader(f)
 
     connections = []
@@ -321,7 +296,13 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
     f.close()
 
     # Compute throughput after the bottleneck
-    f = open(file_name2)
+    pcap2 = os.path.join(path, PCAP2 + ZIP_FILE_EXTENSION)
+    if not os.path.exists(pcap2):
+        pcap2 = os.path.join(path, PCAP2)
+        f = open(pcap2)
+    else:
+        f = gzip.open(pcap2)
+
     pcap = dpkt.pcap.Reader(f)
 
     connections = []
@@ -421,11 +402,16 @@ def parse_pcap(path, pcap_file1, pcap_file2, delta_t):
 
 def parse_buffer_backlog(path):
     output = {}
-    paths = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.buffer')]
+    paths = glob.glob(os.path.join(path, '*{}{}'.format(BUFFER_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
+    paths += glob.glob(os.path.join(path, '*{}'.format(BUFFER_FILE_EXTENSION)))
 
     for i, p in enumerate(paths):
         output[i] = ([], [])
-        f = open(p)
+
+        if os.path.splitext(p)[1] == ZIP_FILE_EXTENSION:
+            f = gzip.open(p)
+        else:
+            f = gzip.open(p)
         for line in f:
             split = line.split(';')
             timestamp = parse_timestamp(split[0])
@@ -447,9 +433,10 @@ def parse_bbr_and_cwnd_values(path):
     bbr_values = {}
     cwnd_values = {}
 
-    all_files = os.listdir(path)
-    all_files = [f for f in all_files if f.endswith(".bbr")]
-    all_files = sorted(all_files)
+    paths = glob.glob(os.path.join(path, '*{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
+    paths += glob.glob(os.path.join(path, '*{}'.format(FLOW_FILE_EXTENSION)))
+
+    all_files = sorted(paths)
 
     for i, f in enumerate(all_files):
         files.append(os.path.join(path, f))
@@ -457,7 +444,10 @@ def parse_bbr_and_cwnd_values(path):
         cwnd_values[i] = ([], [], [])
 
     for i, file_path in enumerate(files):
-        f = open(file_path)
+        if os.path.splitext(file_path)[1] == ZIP_FILE_EXTENSION:
+            f = gzip.open(file_path)
+        else:
+            f = open(file_path)
 
         for line in f:
             split = map(lambda x: x.strip(), line.split(';'))

@@ -7,28 +7,9 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
-
-PLOT_PATH = 'pdf_plots'
+from helper import PLOT_PATH, PLOT_TYPES
 
 PLOT_TOTAL = True
-
-
-PLOT_TYPES = [
-    'sending_rate',
-    'throughput',
-    'fairness',
-    'retransmission',
-    'avg_rtt',
-    'rtt',
-    'inflight',
-    'cwnd',
-    'buffer_backlog',
-    'bdp',
-    'btl_bw',
-    'rt_prop',
-    'window_gain',
-    'pacing_gain',
-]
 
 
 class Plot:
@@ -40,7 +21,7 @@ class Plot:
         self.unit = unit
 
 
-def plot_all(path, pcap_data, plot_only, hide_total=False, skip_retransmission=False):
+def plot_all(path, pcap_data, plot_only, hide_total=False):
 
     global PLOT_TOTAL
     PLOT_TOTAL = not hide_total
@@ -88,7 +69,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, skip_retransmission=F
             Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index")
         ]
 
-    if 'retransmission' in plot_only and not skip_retransmission:
+    if 'retransmission' in plot_only:
         plots += [
             Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
             #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),

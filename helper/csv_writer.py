@@ -1,29 +1,15 @@
 import os
 import errno
 import numpy as np
+import gzip
+import shutil
 
 from pcap_data import PcapData
 
-CSV_FILE_NAMES = {
-    'rtt': 'rtt.csv',
-    'throughput': 'throughput.csv',
-    'fairness': 'fairness.csv',
-    'inflight': 'inflight.csv',
-    'avg_rtt': 'avg_rtt.csv',
-    'sending_rate': 'sending_rate.csv',
-    'bbr_values': 'bbr_values.csv',
-    'bbr_total_values': 'bbr_total_values.csv',
-    'cwnd_values': 'cwnd_values.csv',
-    'retransmissions': 'retransmissions.csv',
-    'retransmissions_interval': 'retransmissions_interval.csv',
-    'buffer_backlog': 'buffer_backlog.csv'
-}
-
-CSV_PATH = 'csv_data'
-INFORMATION_FILE = 'values.info'
+from helper import CSV_PATH, CSV_FILE_NAMES, ZIP_FILE_EXTENSION, INFORMATION_FILE, GZIP_CSV_FILENAMES
 
 
-def write_to_csv(path, pcap_data):
+def write_to_csv(path, pcap_data, compression=False):
     path = os.path.join(path, CSV_PATH)
 
     if not os.path.exists(path):
@@ -37,11 +23,17 @@ def write_to_csv(path, pcap_data):
     value_dict = pcap_data.values_as_dict()
 
     for value in value_dict:
-        write_csv(os.path.join(path, CSV_FILE_NAMES[value]), value_dict[value])
+        if compression:
+            write_csv(os.path.join(path, GZIP_CSV_FILENAMES[value]), value_dict[value], compression=compression)
+        else:
+            write_csv(os.path.join(path, CSV_FILE_NAMES[value]), value_dict[value], compression=compression)
 
 
-def write_csv(path, data):
-    f = open(path, 'w')
+def write_csv(path, data, compression=False):
+    if compression:
+        f = gzip.open(path, 'wb')
+    else:
+        f = open(path, 'w')
     connections = []
     max_length = 0
     columns = 1
@@ -87,7 +79,7 @@ def read_from_csv(path):
 
     missing_file = False
     for f in data_files:
-        if not os.path.isfile(data_files[f]):
+        if not os.path.isfile(data_files[f]) and not os.path.isfile(data_files[f] + ZIP_FILE_EXTENSION):
             missing_file = True
             print("  - File missing: {}".format(data_files[f]))
 
@@ -123,7 +115,12 @@ def read_from_csv(path):
 
 def read_csv(path, columns_per_connection=2):
     output = {}
-    f = open(path)
+
+    if os.path.exists(path + ZIP_FILE_EXTENSION):
+        f = gzip.open(path + ZIP_FILE_EXTENSION)
+    else:
+        f = open(path)
+
     first_line = f.readline().split(';')[:-1]
     for line in f:
         split = line.split(';')

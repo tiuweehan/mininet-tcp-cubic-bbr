@@ -4,6 +4,10 @@ import sys
 import gzip
 import os
 
+from helper import CSV_PATH, PLOT_PATH
+from helper import PCAP1, PCAP2
+from helper import ZIP_FILE_EXTENSION
+
 colors = {
     'red': '[1;31;40m',
     'green': '[1;32;40m',
@@ -120,13 +124,12 @@ def compress_file(uncompressed_file, delete_original=False):
         f_in = open(uncompressed_file, 'rb')
         data = f_in.read()
         f_in.close()
-        original_size = os.path.getsize(uncompressed_file)
-
+        original_size = os.path.getsize(uncompressed_file) or -1
 
         f_out = gzip.open(uncompressed_file + '.gz', 'wb')
         f_out.write(data)
         f_out.close()
-        compressed_size = os.path.getsize(uncompressed_file + '.gz')
+        compressed_size = os.path.getsize(uncompressed_file + '.gz') or -1
 
         if delete_original:
             os.remove(uncompressed_file)
@@ -139,3 +142,21 @@ def compress_file(uncompressed_file, delete_original=False):
         'compressed_size': compressed_size,
         'return_code': 0,
     }
+
+
+def check_directory(dir, only_new=False):
+    if not os.path.isfile(os.path.join(dir, PCAP1)) and not os.path.isfile(os.path.join(dir, PCAP1 + ZIP_FILE_EXTENSION)):
+        return False
+
+    if not os.path.isfile(os.path.join(dir, PCAP2)) and not os.path.isfile(os.path.join(dir, PCAP2 + ZIP_FILE_EXTENSION)):
+        return False
+
+    if only_new:
+        csv_path = os.path.join(dir, CSV_PATH)
+        pdf_path = os.path.join(dir, PLOT_PATH)
+        if os.path.exists(csv_path) and os.path.exists(pdf_path):
+            return False
+
+    return True
+
+
