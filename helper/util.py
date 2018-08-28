@@ -1,18 +1,32 @@
 import subprocess
 import time
 import sys
+import gzip
+import os
+
+colors = {
+    'red': '[1;31;40m',
+    'green': '[1;32;40m',
+    'yellow': '[1;33;40m',
+}
 
 
 def print_error(line):
-    print('\x1b[1;31;40m{}\x1b[0m'.format(line))
+    print(colorize(line, 'red'))
 
 
 def print_warning(line):
-    print('\x1b[1;33;40m{}\x1b[0m'.format(line))
+    print(colorize(line, 'yellow'))
 
 
 def print_success(line):
-    print('\x1b[1;32;40m{}\x1b[0m'.format(line))
+    print(colorize(line, 'green'))
+
+
+def colorize(string, color=None):
+    if color not in colors.keys():
+        return string
+    return '\x1b{color}{string}\x1b[0m'.format(color=colors[color], string=string)
 
 
 def get_git_revision_hash():
@@ -66,25 +80,28 @@ def check_tools():
     return len(missing_tools)
 
 
+def print_line(string, new_line=False):
+    if new_line:
+        string += '\n'
+    else:
+        string += '\r'
+    sys.stdout.write(string)
+    sys.stdout.flush()
+
+
 def print_timer(complete, current):
     share = current * 100.0 / complete
 
     string = '  {:6.2f}%'.format(share)
     if complete == current:
-        string = '\x1b[1;32;40m' + string + '\x1b[0m'
+        string = colorize(string, 'green')
 
     string += ' ['
     string += '=' * int(share / 10 * 3)
     string += ' ' * (30 - int(share / 10 * 3))
     string += '] {:6.1f}s remaining'.format(complete - current)
 
-    if complete != current:
-        string += '\r'
-    else:
-        string += '\n'
-
-    sys.stdout.write(string)
-    sys.stdout.flush()
+    print_line(string, new_line=complete == current)
 
 
 def sleep_progress_bar(seconds, current_time, complete):
@@ -95,3 +112,30 @@ def sleep_progress_bar(seconds, current_time, complete):
         print_timer(complete=complete, current=current_time)
         seconds -= 1
     return current_time
+
+
+def compress_file(uncompressed_file, delete_original=False):
+
+    try:
+        f_in = open(uncompressed_file, 'rb')
+        data = f_in.read()
+        f_in.close()
+        original_size = os.path.getsize(uncompressed_file)
+
+
+        f_out = gzip.open(uncompressed_file + '.gz', 'wb')
+        f_out.write(data)
+        f_out.close()
+        compressed_size = os.path.getsize(uncompressed_file + '.gz')
+
+        if delete_original:
+            os.remove(uncompressed_file)
+
+    except Exception as e:
+        print_error('Error on compressing {}.\n {}'.format(uncompressed_file, e))
+
+    return {
+        'original_size': original_size,
+        'compressed_size': compressed_size,
+        'return_code': 0,
+    }

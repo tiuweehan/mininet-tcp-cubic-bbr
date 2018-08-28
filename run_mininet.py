@@ -5,9 +5,10 @@ from mininet.log import setLogLevel
 from mininet.cli import CLI
 from mininet.clean import cleanup
 
-from helper.util import print_error, print_warning, print_success
+from helper.util import print_error, print_warning, print_success, colorize, print_line
 from helper.util import get_git_revision_hash, get_host_version, get_available_algorithms, check_tools
 from helper.util import sleep_progress_bar
+from helper.util import compress_file
 
 import os
 import sys
@@ -15,9 +16,14 @@ import subprocess
 import time
 import argparse
 import re
+import glob
 
 
 MAX_HOST_NUMBER = 256**2
+TEXT_WIDTH = 60
+
+BUFFER_FILE_EXTENSION = 'buffer'
+FLOW_FILE_EXTENSION = 'flow'
 
 
 class DumbbellTopo(Topo):
@@ -114,12 +120,10 @@ def parseConfigFile(file):
     return output
 
 
-def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buffer_latency, poll_interval):
+def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_size, buffer_latency, poll_interval):
     duration = 0
     start_time = 0
     number_of_hosts = 0
-
-    output_directory = os.path.join(directory, '{}_{}'.format(time.strftime('%m%d_%H%M%S'), name))
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -151,8 +155,7 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         f.write('\n'.join(write_config))
         f.close()
 
-    text_width = 60
-    print('-' * text_width)
+    print('-' * TEXT_WIDTH)
     print('Starting test: {}'.format(name))
     print('Total duration: {}s'.format(duration))
 
@@ -196,7 +199,7 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
         # pull BBR values
-        send.cmd('./ss_script.sh {} >> {}.bbr &'.format(poll_interval, os.path.join(output_directory, send.IP())))
+        send.cmd('./ss_script.sh {} >> {}.{} &'.format(poll_interval, os.path.join(output_directory, send.IP()), FLOW_FILE_EXTENSION))
 
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
@@ -206,8 +209,9 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
     if initial_rtt != '0ms':
         netem_running = True
         s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(initial_rtt))
-    s2.cmd('./buffer_script.sh {0} {1} >> {2}.buffer &'.format(poll_interval, 's2-eth2',
-                                                               os.path.join(output_directory, 's2-eth2-tbf')))
+    s2.cmd('./buffer_script.sh {0} {1} >> {2}.{3} &'.format(poll_interval, 's2-eth2',
+                                                            os.path.join(output_directory, 's2-eth2-tbf'),
+                                                            BUFFER_FILE_EXTENSION))
 
     complete = duration
     current_time = 0
@@ -240,7 +244,7 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
                 log_String = '  h{}: {} {}, {} -> {}'.format(host_counter, cmd['algorithm'], cmd['rtt'], send.IP(), recv.IP())
                 send.cmd('timeout {} nc {} 9000 < /dev/urandom > /dev/null &'.format(timeout, recv.IP()))
                 host_counter += 1
-            print(log_String + ' ' * (text_width - len(log_String)))
+            print(log_String + ' ' * (TEXT_WIDTH - len(log_String)))
 
         current_time = sleep_progress_bar((complete - current_time) % 1, current_time=current_time, complete=complete)
         current_time = sleep_progress_bar(complete - current_time, current_time=current_time, complete=complete)
@@ -253,7 +257,7 @@ def run_test(commands, directory, name, bandwidth, initial_rtt, buffer_size, buf
         net.stop()
         cleanup()
 
-    print('-' * text_width)
+    print('-' * TEXT_WIDTH)
 
 
 def verify_arguments(args, commands):
@@ -294,6 +298,31 @@ def verify(type, value):
     return True
 
 
+def compress_output(dir):
+
+    all_files = glob.glob(os.path.join(dir, '*.{}'.format(FLOW_FILE_EXTENSION)))
+    all_files += glob.glob(os.path.join(dir, '*.{}'.format(BUFFER_FILE_EXTENSION)))
+    all_files += glob.glob(os.path.join(dir, '*.pcap'))
+
+    original_size = 0
+    compressed_size = 0
+    compressed_files = 0
+
+    print('Compressing files:')
+
+    for f in all_files:
+        info = compress_file(f, delete_original=True)
+        if info['return_code'] == 0:
+            original_size += info['original_size']
+            compressed_size += info['compressed_size']
+            compressed_files += 1
+            print('  * {:5.2f}% {}'.format(100.0 * info['compressed_size'] / info['original_size'], f))
+
+    compress_rate = 100 * float(compressed_size) / original_size
+
+    print('Compressed {} files ({})'.format(compressed_files, colorize('{:5.2f}%'.format(compress_rate), 'green')))
+
+
 if __name__ == '__main__':
     if check_tools() > 0:
         exit(1)
@@ -315,6 +344,8 @@ if __name__ == '__main__':
                         default='TCP', help='Name of the output directory. (default: TCP)')
     parser.add_argument('--poll-interval', dest='poll_interval', type=float,
                         default=0.04, help='Interval to poll TCP values and buffer backlog in seconds. (default: 0.04)')
+    parser.add_argument('--no-compression', dest='no_compression', action='store_true',
+                        help='Do not compress the output files.')
 
     args = parser.parse_args()
 
@@ -331,6 +362,8 @@ if __name__ == '__main__':
         print_error('Please fix malformed parameters.')
         sys.exit(128)
 
+    output_directory = os.path.join(args.directory, '{}_{}'.format(time.strftime('%m%d_%H%M%S'), args.name))
+
     # setLogLevel('info')
     run_test(bandwidth=args.bandwidth,
              initial_rtt=args.rtt,
@@ -338,5 +371,9 @@ if __name__ == '__main__':
              buffer_size=args.buffer_size,
              buffer_latency=args.latency,
              name=args.name,
-             directory=args.directory,
+             output_directory=output_directory,
              poll_interval=args.poll_interval)
+
+    if not args.no_compression:
+        compress_output(output_directory)
+        print('-' * TEXT_WIDTH)
