@@ -9,7 +9,7 @@ import gzip
 from helper.csv_writer import write_to_csv, read_from_csv
 from helper.pcap_data import PcapData, DataInfo
 from helper.create_plots import plot_all
-from helper.util import check_directory
+from helper.util import check_directory, is_compressed
 
 from helper import PCAP1, PCAP2, PLOT_PATH, CSV_PATH, PLOT_TYPES
 from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION
@@ -89,7 +89,7 @@ def main():
 def parse_pcap(path, delta_t):
     print("Processing: {}".format(path))
 
-    pcap1 = os.path.join(path, PCAP1 + ZIP_FILE_EXTENSION)
+    pcap1 = os.path.join(path, PCAP1 + '.' + ZIP_FILE_EXTENSION)
     if not os.path.exists(pcap1):
         pcap1 = os.path.join(path, PCAP1)
         f = open(pcap1)
@@ -296,7 +296,7 @@ def parse_pcap(path, delta_t):
     f.close()
 
     # Compute throughput after the bottleneck
-    pcap2 = os.path.join(path, PCAP2 + ZIP_FILE_EXTENSION)
+    pcap2 = os.path.join(path, PCAP2 + '.' + ZIP_FILE_EXTENSION)
     if not os.path.exists(pcap2):
         pcap2 = os.path.join(path, PCAP2)
         f = open(pcap2)
@@ -402,16 +402,15 @@ def parse_pcap(path, delta_t):
 
 def parse_buffer_backlog(path):
     output = {}
-    paths = glob.glob(os.path.join(path, '*{}{}'.format(BUFFER_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
-    paths += glob.glob(os.path.join(path, '*{}'.format(BUFFER_FILE_EXTENSION)))
+    paths = glob.glob(os.path.join(path, '*.{}.{}'.format(BUFFER_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
+    paths += glob.glob(os.path.join(path, '*.{}'.format(BUFFER_FILE_EXTENSION)))
 
     for i, p in enumerate(paths):
         output[i] = ([], [])
-
-        if os.path.splitext(p)[1] == ZIP_FILE_EXTENSION:
+        if is_compressed(p):
             f = gzip.open(p)
         else:
-            f = gzip.open(p)
+            f = open(p)
         for line in f:
             split = line.split(';')
             timestamp = parse_timestamp(split[0])
@@ -429,22 +428,20 @@ def parse_buffer_backlog(path):
 
 
 def parse_bbr_and_cwnd_values(path):
-    files = []
     bbr_values = {}
     cwnd_values = {}
 
-    paths = glob.glob(os.path.join(path, '*{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
-    paths += glob.glob(os.path.join(path, '*{}'.format(FLOW_FILE_EXTENSION)))
+    paths = glob.glob(os.path.join(path, '*.{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
+    paths += glob.glob(os.path.join(path, '*.{}'.format(FLOW_FILE_EXTENSION)))
 
     all_files = sorted(paths)
 
-    for i, f in enumerate(all_files):
-        files.append(os.path.join(path, f))
+    for i, file_path in enumerate(all_files):
+
         bbr_values[i] = ([], [], [], [], [], [])
         cwnd_values[i] = ([], [], [])
 
-    for i, file_path in enumerate(files):
-        if os.path.splitext(file_path)[1] == ZIP_FILE_EXTENSION:
+        if is_compressed(file_path)[1]:
             f = gzip.open(file_path)
         else:
             f = open(file_path)

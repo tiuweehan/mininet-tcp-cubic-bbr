@@ -129,7 +129,7 @@ def compress_file(uncompressed_file, delete_original=False):
         f_out = gzip.open(uncompressed_file + '.gz', 'wb')
         f_out.write(data)
         f_out.close()
-        compressed_size = os.path.getsize(uncompressed_file + '.gz') or -1
+        compressed_size = os.path.getsize(uncompressed_file + '.' + ZIP_FILE_EXTENSION) or -1
 
         if delete_original:
             os.remove(uncompressed_file)
@@ -144,11 +144,15 @@ def compress_file(uncompressed_file, delete_original=False):
     }
 
 
+def is_compressed(file):
+    return os.path.splitext(file)[1] == '.' + ZIP_FILE_EXTENSION
+
+
 def check_directory(dir, only_new=False):
-    if not os.path.isfile(os.path.join(dir, PCAP1)) and not os.path.isfile(os.path.join(dir, PCAP1 + ZIP_FILE_EXTENSION)):
+    if not os.path.isfile(os.path.join(dir, PCAP1)) and not os.path.isfile(os.path.join(dir, PCAP1 + '.' + ZIP_FILE_EXTENSION)):
         return False
 
-    if not os.path.isfile(os.path.join(dir, PCAP2)) and not os.path.isfile(os.path.join(dir, PCAP2 + ZIP_FILE_EXTENSION)):
+    if not os.path.isfile(os.path.join(dir, PCAP2)) and not os.path.isfile(os.path.join(dir, PCAP2 + '.' + ZIP_FILE_EXTENSION)):
         return False
 
     if only_new:

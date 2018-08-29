@@ -197,7 +197,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
         recv.cmd('timeout {} nc -klp 9000 > /dev/null &'.format(duration))
 
         # pull BBR values
-        send.cmd('./ss_script.sh {} >> {}{} &'.format(poll_interval, os.path.join(output_directory, send.IP()), FLOW_FILE_EXTENSION))
+        send.cmd('./ss_script.sh {} >> {}.{} &'.format(poll_interval, os.path.join(output_directory, send.IP()), FLOW_FILE_EXTENSION))
 
     s2, s3 = net.get('s2', 's3')
     s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
@@ -207,7 +207,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
     if initial_rtt != '0ms':
         netem_running = True
         s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(initial_rtt))
-    s2.cmd('./buffer_script.sh {0} {1} >> {2}{3} &'.format(poll_interval, 's2-eth2',
+    s2.cmd('./buffer_script.sh {0} {1} >> {2}.{3} &'.format(poll_interval, 's2-eth2',
                                                             os.path.join(output_directory, 's2-eth2-tbf'),
                                                             BUFFER_FILE_EXTENSION))
 
@@ -298,8 +298,8 @@ def verify(type, value):
 
 def compress_output(dir):
 
-    all_files = glob.glob(os.path.join(dir, '*{}'.format(FLOW_FILE_EXTENSION)))
-    all_files += glob.glob(os.path.join(dir, '*{}'.format(BUFFER_FILE_EXTENSION)))
+    all_files = glob.glob(os.path.join(dir, '*.{}'.format(FLOW_FILE_EXTENSION)))
+    all_files += glob.glob(os.path.join(dir, '*.{}'.format(BUFFER_FILE_EXTENSION)))
     all_files += glob.glob(os.path.join(dir, '*.pcap'))
 
     original_size = 0
