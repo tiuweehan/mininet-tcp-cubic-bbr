@@ -347,7 +347,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.name = args.name or os.path.splitext(os.path.basename(args.config))[0] or 'TCP_Test'
+    # Use config file name if no explicit name is specified
+    args.name = args.name or os.path.splitext(os.path.basename(args.config))[0]
 
     if not os.path.isfile(args.config):
         print_error('Config file missing: {}'.format(args.config))
