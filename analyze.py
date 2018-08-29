@@ -431,7 +431,7 @@ def parse_bbr_and_cwnd_values(path):
     bbr_values = {}
     cwnd_values = {}
 
-    paths = glob.glob(os.path.join(path, '*.{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
+    paths = glob.glob(os.path.join(path, '*.{}.{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
     paths += glob.glob(os.path.join(path, '*.{}'.format(FLOW_FILE_EXTENSION)))
 
     all_files = sorted(paths)
@@ -441,7 +441,7 @@ def parse_bbr_and_cwnd_values(path):
         bbr_values[i] = ([], [], [], [], [], [])
         cwnd_values[i] = ([], [], [])
 
-        if is_compressed(file_path)[1]:
+        if is_compressed(file_path):
             f = gzip.open(file_path)
         else:
             f = open(file_path)

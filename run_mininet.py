@@ -316,9 +316,9 @@ def compress_output(dir):
             compressed_files += 1
             print('  * {:5.2f}% {}'.format(100.0 * info['compressed_size'] / info['original_size'], f))
 
-    compress_rate = 100 * float(compressed_size) / original_size
+    compress_rate = 100 * (1 - float(compressed_size) / original_size)
 
-    print('Compressed {} files ({})'.format(compressed_files, colorize('{:5.2f}%'.format(compress_rate), 'green')))
+    print('Compressed {} files ({:4.1f}%)'.format(compressed_files, compress_rate))
 
 
 if __name__ == '__main__':
@@ -339,13 +339,15 @@ if __name__ == '__main__':
     parser.add_argument('-l', dest='latency',
                         default='100ms', help='Maximum latency at the bottleneck buffer. (default: 100ms)')
     parser.add_argument('-n', dest='name',
-                        default='TCP', help='Name of the output directory. (default: TCP)')
+                        help='Name of the output directory. (default: <config file name>)')
     parser.add_argument('--poll-interval', dest='poll_interval', type=float,
                         default=0.04, help='Interval to poll TCP values and buffer backlog in seconds. (default: 0.04)')
     parser.add_argument('--no-compression', dest='no_compression', action='store_true',
                         help='Do not compress the output files.')
 
     args = parser.parse_args()
+
+    args.name = args.name or os.path.splitext(os.path.basename(args.config))[0] or 'TCP_Test'
 
     if not os.path.isfile(args.config):
         print_error('Config file missing: {}'.format(args.config))
