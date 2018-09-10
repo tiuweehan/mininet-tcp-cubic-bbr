@@ -93,7 +93,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
 
     if 'cwnd' in plot_only:
         plots += [
-            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'cwnd', 'MSS')
+            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWnd', 'MSS')
         ]
 
     if 'buffer_backlog' in plot_only and len(buffer_backlog) > 0:
@@ -133,30 +133,22 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
             Plot((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain', '')
         ]
 
-    grid_tick_maior_interval = 10
-    grid_tick_minor_interval = 2
-    grid_tick_max_value = sending_rate[len(sending_rate) - 1][0][-1]
-
     if all_plots:
         for plot in plots:
+            print_line('  *  {} ...'.format(plot.plot_name), new_line=False)
             f, ax = plt.subplots(1)
             f.set_size_inches(20, 10)
-
-            ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
-            ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
-            ax.grid(which='both', color='black', linestyle='dashed', alpha=0.4)
-            plot.plot_function(plot.data, ax)
 
             label = plot.plot_name
             if plot.unit != '':
                 label += ' in {}'.format(plot.unit)
 
-            ax.set_ylabel(label)
-            ax.set_title(plot.plot_name)
-            ax.set_xlim(xmax=t_max)
-            f.tight_layout()
+            setup_ax(ax=ax, title=plot.plot_name, label=label, xmin=0, xmax=t_max)
+            plot.plot_function(plot.data, ax)
 
-            plt.savefig(os.path.join(path, plot.file_name))
+            legend = ax.legend(loc='upper left', bbox_to_anchor=(0, -0.04, 1, 0), mode='expand', borderaxespad=0.1, ncol=10)
+
+            f.savefig(os.path.join(path, plot.file_name), bbox_extra_artists=(legend, ), bbox_inches='tight')
             plt.close()
             print('  *  {} created'.format(plot.plot_name))
 
@@ -169,25 +161,39 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
     f.set_size_inches(20, pdf_height)
 
     for i, plot in enumerate(plots):
-        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
-        axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
-        axarr[i].grid(b=True, which='major', color='black', linestyle='dashed', alpha=0.2, linewidth=1.5)
-        axarr[i].grid(b=True, which='minor', color='black', linestyle='dashed', alpha=0.2)
-
+        print_line('     -  Complete plot: {} ...                                 '.format(plot.plot_name))
         label = plot.plot_name
         if plot.unit != '':
             label += ' in {}'.format(plot.unit)
 
-        axarr[i].set_ylabel(label)
-        axarr[i].set_title('{}. {}'.format(i, plot.plot_name))
+        title = '{}. {}'.format(i + 1, plot.plot_name)
+        setup_ax(ax=axarr[i], title=title, label=label, xmin=0, xmax=t_max)
         plot.plot_function(plot.data, axarr[i])
-        axarr[i].set_xlim(xmax=t_max)
-        print_line('     -  {} created                                 '.format(plot.plot_name))
 
-    f.tight_layout()
-    plt.savefig(os.path.join(path, 'plot_complete.pdf'))
+        legend_offset = -0.04
+        if i == len(plots) - 1:
+            legend_offset = -0.08
+        legend = axarr[i].legend(loc='upper left', bbox_to_anchor=(0, legend_offset, 1, 0), borderaxespad=0, ncol=10)
+
+    print('  *  Complete plot ...                  ')
+    plt.tight_layout(h_pad=2.5)
+    plt.savefig(os.path.join(path, 'plot_complete.pdf'), bbox_extra_artists=(legend, ), bbox_inches='tight')
+
     plt.close()
     print('  *  Complete plot created                  ')
+
+
+def setup_ax(ax, title , label, xmin, xmax):
+    grid_tick_maior_interval = 10
+    grid_tick_minor_interval = 2
+
+    ax.set_xticks(np.arange(0, xmax, grid_tick_maior_interval))
+    ax.set_xticks(np.arange(0, xmax, grid_tick_minor_interval), minor=True)
+    ax.grid(which='both', color='black', linestyle='dashed', alpha=0.4)
+
+    ax.set_ylabel(label)
+    ax.set_title(title)
+    ax.set_xlim(xmax=xmax, xmin=xmin)
 
 
 def plot_throughput(data, p_plt):
@@ -240,7 +246,6 @@ def plot_fairness(fairness, p_plt):
         p_plt.plot(data[0], data[1], label=c)
 
     p_plt.set_ylim(ymin=0, ymax=1.1)
-    p_plt.legend()
 
 
 def plot_rtt(rtt, p_plt):
@@ -294,7 +299,6 @@ def plot_bbr_bw(data, p_plt):
 
     if len(bbr) > 2 and num_flows > 1 and PLOT_TOTAL:
         p_plt.plot(bbr_bw_total[0][0], bbr_bw_total[0][1], label='Total', color='#444444')
-    p_plt.legend()
 
 
 def plot_bbr_rtt(bbr, p_plt):
@@ -310,7 +314,6 @@ def plot_bbr_pacing(data, p_plt):
         p_plt.plot(data[0], data[3], label='Connection {}'.format(c))
     #if len(bbr) > 1:
     #    p_plt.plot(total[2][0], total[2][1], label='Total', color='#444444')
-    p_plt.legend()
 
 
 def plot_bbr_window(data, p_plt):
@@ -323,7 +326,6 @@ def plot_bbr_window(data, p_plt):
             num_flows += 1
     if len(bbr) > 2 and num_flows > 1 and PLOT_TOTAL:
         p_plt.plot(total[1][0], total[1][1], label='Total', color='#444444')
-    p_plt.legend()
 
 
 def plot_bbr_bdp(bbr, p_plt):
@@ -363,7 +365,6 @@ def plot_retransmissions(ret_interval, p_plt):
                 plot_sum[1][plot_sum[0].index(value)] -= data[1][i]
 
     p_plt.bar(plot_sum[0], plot_sum[1], plot_sum[0][1], label='Total {}'.format(total_sum), color='black')
-    p_plt.legend()
 
 
 def plot_retransmission_rate(ret_interval, p_plt):

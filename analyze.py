@@ -87,7 +87,10 @@ def main():
                 continue
 
         if 'pdf' in args.output:
-            print('Creating {} plots'.format(len(plots) + 1))
+            if args.all_plots:
+                print('Creating {} plots'.format(len(plots) + 1))
+            else:
+                print('Creating Complete plot')
             plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total, all_plots=args.all_plots)
 
 
