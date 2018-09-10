@@ -8,6 +8,7 @@ matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 from helper import PLOT_PATH, PLOT_TYPES
+from helper.util import print_line
 
 PLOT_TOTAL = True
 
@@ -21,7 +22,7 @@ class Plot:
         self.unit = unit
 
 
-def plot_all(path, pcap_data, plot_only, hide_total=False):
+def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
 
     global PLOT_TOTAL
     PLOT_TOTAL = not hide_total
@@ -92,7 +93,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False):
 
     if 'cwnd' in plot_only:
         plots += [
-            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWND', 'MSS')
+            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'cwnd', 'MSS')
         ]
 
     if 'buffer_backlog' in plot_only and len(buffer_backlog) > 0:
@@ -114,12 +115,12 @@ def plot_all(path, pcap_data, plot_only, hide_total=False):
 
     if 'btl_bw' in plot_only and has_bbr:
         plots += [
-            Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'btl_bw', 'bit/s'),
+            Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'BtlBw', 'bit/s'),
         ]
 
     if 'rt_prop' in plot_only and has_bbr:
         plots += [
-            Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'rt_prop', 'ms'),
+            Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'RTprop', 'ms'),
         ]
 
     if 'window_gain' in plot_only and has_bbr:
@@ -135,21 +136,30 @@ def plot_all(path, pcap_data, plot_only, hide_total=False):
     grid_tick_maior_interval = 10
     grid_tick_minor_interval = 2
     grid_tick_max_value = sending_rate[len(sending_rate) - 1][0][-1]
-    """
-    for plot in plots:
-        f, ax = plt.subplots(1)
-        f.set_size_inches(20, 10)
 
-        ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
-        ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
-        ax.grid(which='both', color='black', linestyle='dashed', alpha=0.4)
-        plot[1](plot[0], ax)
-        f.tight_layout()
+    if all_plots:
+        for plot in plots:
+            f, ax = plt.subplots(1)
+            f.set_size_inches(20, 10)
 
-        plt.savefig(os.path.join(path, plot[2]))
-        plt.close()
-        print("  *  {} created".format(plot[2]))
-        """
+            ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
+            ax.set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
+            ax.grid(which='both', color='black', linestyle='dashed', alpha=0.4)
+            plot.plot_function(plot.data, ax)
+
+            label = plot.plot_name
+            if plot.unit != '':
+                label += ' in {}'.format(plot.unit)
+
+            ax.set_ylabel(label)
+            ax.set_title(plot.plot_name)
+            ax.set_xlim(xmax=t_max)
+            f.tight_layout()
+
+            plt.savefig(os.path.join(path, plot.file_name))
+            plt.close()
+            print('  *  {} created'.format(plot.plot_name))
+
     f, axarr = plt.subplots(len(plots), sharex=True)
 
     if len(plots) == 1:
@@ -158,13 +168,11 @@ def plot_all(path, pcap_data, plot_only, hide_total=False):
     pdf_height = 55.0 * float(len(plots)) / len(PLOT_TYPES)
     f.set_size_inches(20, pdf_height)
 
-    print("  *  create plot_complete.pdf")
     for i, plot in enumerate(plots):
         axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_maior_interval))
         axarr[i].set_xticks(np.arange(0, grid_tick_max_value, grid_tick_minor_interval), minor=True)
         axarr[i].grid(b=True, which='major', color='black', linestyle='dashed', alpha=0.2, linewidth=1.5)
         axarr[i].grid(b=True, which='minor', color='black', linestyle='dashed', alpha=0.2)
-
 
         label = plot.plot_name
         if plot.unit != '':
@@ -174,11 +182,12 @@ def plot_all(path, pcap_data, plot_only, hide_total=False):
         axarr[i].set_title('{}. {}'.format(i, plot.plot_name))
         plot.plot_function(plot.data, axarr[i])
         axarr[i].set_xlim(xmax=t_max)
-        print("     -  {} created".format(plot.plot_name))
+        print_line('     -  {} created                                 '.format(plot.plot_name))
 
     f.tight_layout()
     plt.savefig(os.path.join(path, 'plot_complete.pdf'))
     plt.close()
+    print('  *  Complete plot created                  ')
 
 
 def plot_throughput(data, p_plt):

@@ -2,11 +2,13 @@ import subprocess
 import time
 import sys
 import gzip
+import bz2
+
 import os
 
 from helper import CSV_PATH, PLOT_PATH
 from helper import PCAP1, PCAP2
-from helper import ZIP_FILE_EXTENSION
+from helper import FLOW_FILE_EXTENSION, BUFFER_FILE_EXTENSION, COMPRESSION_EXTENSIONS, COMPRESSION_METHODS
 
 colors = {
     'red': '[1;31;40m',
@@ -69,12 +71,7 @@ def check_tools():
     }
 
     for package, tool in tools.items():
-        try:
-            process = subprocess.Popen(['which', tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            out = process.communicate()[0]
-            if out == "":
-                missing_tools.append(package)
-        except (OSError, subprocess.CalledProcessError) as e:
+        if not check_tool(tool):
             missing_tools.append(package)
 
     if len(missing_tools) > 0:
@@ -82,6 +79,17 @@ def check_tools():
         print_error('  apt install ' + ' '.join(missing_tools))
 
     return len(missing_tools)
+
+
+def check_tool(tool):
+    try:
+        process = subprocess.Popen(['which', tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out = process.communicate()[0]
+        if out == "":
+            return False
+    except (OSError, subprocess.CalledProcessError) as e:
+        return False
+    return True
 
 
 def print_line(string, new_line=False):
@@ -118,41 +126,50 @@ def sleep_progress_bar(seconds, current_time, complete):
     return current_time
 
 
-def compress_file(uncompressed_file, delete_original=False):
-
+def compress_file(uncompressed_file, method):
     try:
-        f_in = open(uncompressed_file, 'rb')
-        data = f_in.read()
-        f_in.close()
-        original_size = os.path.getsize(uncompressed_file) or -1
-
-        f_out = gzip.open(uncompressed_file + '.gz', 'wb')
-        f_out.write(data)
-        f_out.close()
-        compressed_size = os.path.getsize(uncompressed_file + '.' + ZIP_FILE_EXTENSION) or -1
-
-        if delete_original:
-            os.remove(uncompressed_file)
+        subprocess.check_call([method, uncompressed_file])
 
     except Exception as e:
         print_error('Error on compressing {}.\n {}'.format(uncompressed_file, e))
 
-    return {
-        'original_size': original_size,
-        'compressed_size': compressed_size,
-        'return_code': 0,
-    }
+
+def find_file(path):
+    for method in COMPRESSION_METHODS:
+        ext = COMPRESSION_EXTENSIONS[method]
+        if os.path.isfile(path + ext):
+            return path + ext
+    return None
 
 
-def is_compressed(file):
-    return os.path.splitext(file)[1] == '.' + ZIP_FILE_EXTENSION
+def open_compressed_file(path, write=False):
+    file_extension = os.path.splitext(path)[1].replace('.', '')
+    if file_extension == 'gz':
+        if write:
+            f = gzip.open(path, 'wb')
+        else:
+            f = gzip.open(path)
+    elif file_extension == 'bz2':
+        if write:
+            f = bz2.BZ2File(path, 'wb')
+        else:
+            f = bz2.BZ2File(path)
+    elif file_extension in ['csv', 'pcap', FLOW_FILE_EXTENSION, BUFFER_FILE_EXTENSION]:
+        if write:
+            f = open(path, 'w')
+        else:
+            f = open(path)
+    else:
+        raise Exception('Unknown file extension: {}'.format(file_extension))
+    return f
 
 
 def check_directory(dir, only_new=False):
-    if not os.path.isfile(os.path.join(dir, PCAP1)) and not os.path.isfile(os.path.join(dir, PCAP1 + '.' + ZIP_FILE_EXTENSION)):
-        return False
 
-    if not os.path.isfile(os.path.join(dir, PCAP2)) and not os.path.isfile(os.path.join(dir, PCAP2 + '.' + ZIP_FILE_EXTENSION)):
+    pcap1_exists = find_file(os.path.join(dir, PCAP1)) is not None
+    pcap2_exists = find_file(os.path.join(dir, PCAP2)) is not None
+
+    if not pcap1_exists & pcap2_exists:
         return False
 
     if only_new:

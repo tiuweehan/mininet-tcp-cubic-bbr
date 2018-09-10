@@ -1,6 +1,5 @@
 BUFFER_FILE_EXTENSION = 'buffer'
 FLOW_FILE_EXTENSION = 'bbr'
-ZIP_FILE_EXTENSION = 'gz'
 
 
 PCAP1 = 's1.pcap'
@@ -26,6 +25,15 @@ PLOT_TYPES = [
 ]
 
 
+COMPRESSION_METHODS = ['none', 'gzip', 'bzip2']
+COMPRESSION_EXTENSIONS = {
+    'none': '',
+    'gzip': '.gz',
+    'bzip2': '.bz2',
+}
+
+
+CSV_PATH = 'csv_data'
 CSV_FILE_NAMES = {
     'rtt': 'rtt.csv',
     'throughput': 'throughput.csv',
@@ -41,7 +49,5 @@ CSV_FILE_NAMES = {
     'buffer_backlog': 'buffer_backlog.csv'
 }
 
-GZIP_CSV_FILENAMES = {k: v + '.' + ZIP_FILE_EXTENSION for (k, v) in CSV_FILE_NAMES.items()}
-
-CSV_PATH = 'csv_data'
 INFORMATION_FILE = 'values.info'
+

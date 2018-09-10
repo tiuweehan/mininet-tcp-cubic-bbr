@@ -6,10 +6,10 @@ from mininet.cli import CLI
 from mininet.clean import cleanup
 
 from helper.util import print_error, print_warning, print_success, colorize, print_line
-from helper.util import get_git_revision_hash, get_host_version, get_available_algorithms, check_tools
+from helper.util import get_git_revision_hash, get_host_version, get_available_algorithms, check_tools, check_tool
 from helper.util import sleep_progress_bar
 from helper.util import compress_file
-from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION
+from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, COMPRESSION_METHODS
 
 import os
 import sys
@@ -296,29 +296,17 @@ def verify(type, value):
     return True
 
 
-def compress_output(dir):
+def compress_output(dir, method):
 
     all_files = glob.glob(os.path.join(dir, '*.{}'.format(FLOW_FILE_EXTENSION)))
     all_files += glob.glob(os.path.join(dir, '*.{}'.format(BUFFER_FILE_EXTENSION)))
     all_files += glob.glob(os.path.join(dir, '*.pcap'))
 
-    original_size = 0
-    compressed_size = 0
-    compressed_files = 0
-
     print('Compressing files:')
 
     for f in all_files:
-        info = compress_file(f, delete_original=True)
-        if info['return_code'] == 0:
-            original_size += info['original_size']
-            compressed_size += info['compressed_size']
-            compressed_files += 1
-            print('  * {:5.2f}% {}'.format(100.0 * info['compressed_size'] / info['original_size'], f))
-
-    compress_rate = 100 * (1 - float(compressed_size) / original_size)
-
-    print('Compressed {} files ({:4.1f}%)'.format(compressed_files, compress_rate))
+        compress_file(f, method)
+        print('  * {}'.format(os.path.basename(f)))
 
 
 if __name__ == '__main__':
@@ -342,8 +330,9 @@ if __name__ == '__main__':
                         help='Name of the output directory. (default: <config file name>)')
     parser.add_argument('--poll-interval', dest='poll_interval', type=float,
                         default=0.04, help='Interval to poll TCP values and buffer backlog in seconds. (default: 0.04)')
-    parser.add_argument('--no-compression', dest='no_compression', action='store_true',
-                        help='Do not compress the output files.')
+    parser.add_argument('-c --compression', dest='compression',
+                        choices=COMPRESSION_METHODS, default=COMPRESSION_METHODS[1],
+                        help='Compression method of the output files. Default: {}'.format(COMPRESSION_METHODS[1]))
 
     args = parser.parse_args()
 
@@ -375,6 +364,12 @@ if __name__ == '__main__':
              output_directory=output_directory,
              poll_interval=args.poll_interval)
 
-    if not args.no_compression:
-        compress_output(output_directory)
+    compression = args.compression
+
+    if compression != COMPRESSION_METHODS[0]:
+        if not check_tool(compression):
+            print_warning('Compression with {} not possible. Continuing without compression.'.format(compression))
+            compression = COMPRESSION_METHODS[0]
+
+        compress_output(output_directory, compression)
         print('-' * TEXT_WIDTH)

@@ -9,10 +9,11 @@ import gzip
 from helper.csv_writer import write_to_csv, read_from_csv
 from helper.pcap_data import PcapData, DataInfo
 from helper.create_plots import plot_all
-from helper.util import check_directory, is_compressed
+from helper.util import check_directory, print_line, open_compressed_file, colorize
 
 from helper import PCAP1, PCAP2, PLOT_PATH, CSV_PATH, PLOT_TYPES
-from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION
+from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION
+from helper import COMPRESSION_METHODS, COMPRESSION_EXTENSIONS
 
 
 def main():
@@ -38,8 +39,11 @@ def main():
                         help='Add a plot to the final PDF output. This is overwritten by the -i option if both are given.')
     parser.add_argument('-i --ignore-plot', action='append', choices=PLOT_TYPES, dest='ignored_plots',
                         help='Remove a plot from the PDF output. This overwrites the -a option.')
-    parser.add_argument('--no-compression', dest='no_compression', action='store_true',
-                        help='Do not compress the output files.')
+    parser.add_argument('-c --compression', dest='compression',
+                        choices=COMPRESSION_METHODS, default=COMPRESSION_METHODS[1],
+                        help='Compression method of the output files. Default: {}'.format(COMPRESSION_METHODS[1]))
+    parser.add_argument('--all-plots', dest='all_plots', action='store_true',
+                        help='Additionally store each plot in an individual PDF file.')
 
     args = parser.parse_args()
 
@@ -58,43 +62,46 @@ def main():
         for subdirs, _, _ in os.walk(directory):
             if check_directory(subdirs, only_new=args.new):
                 paths.append(subdirs)
-
-        print('Found {} pcaps in sub directories.'.format(len(paths)))
     else:
-        paths = [directory]
+        if check_directory(directory, only_new=args.new):
+            paths = [directory]
+    print('Found {} valid sub directories.'.format(len(paths)))
 
     paths = sorted(paths)
 
     for i, directory in enumerate(paths):
-
+        print('{}/{} Processing {}'.format(i + 1, len(paths), directory))
         if args.source is 'pcap':
 
-            print('{}/{} Reading pcap {}'.format(i + 1, len(paths), directory))
             pcap_data = parse_pcap(path=directory, delta_t=float(args.delta_t))
 
             if 'csv' in args.output:
-                print('Writing to csv ...')
-                write_to_csv(directory, pcap_data, compression=not args.no_compression)
+                string = 'Writing to CSV'
+                if args.compression != COMPRESSION_METHODS[0]:
+                    string += ' and compressing with {}'.format(args.compression)
+                print(string)
+                write_to_csv(directory, pcap_data, compression=args.compression)
         else:
-            print('{}/{} Reading csv {}'.format(i + 1, len(paths), directory))
             pcap_data = read_from_csv(directory)
             if pcap_data == -1:
                 continue
 
         if 'pdf' in args.output:
-            print('Creating plots ...')
-            plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total)
+            print('Creating {} plots'.format(len(plots) + 1))
+            plot_all(directory, pcap_data, plot_only=plots, hide_total=args.hide_total, all_plots=args.all_plots)
 
 
 def parse_pcap(path, delta_t):
-    print("Processing: {}".format(path))
+    # Find correct .pcap files
+    pcap1 = glob.glob(os.path.join(path, PCAP1 + '*'))[0]
+    pcap2 = glob.glob(os.path.join(path, PCAP2 + '*'))[0]
 
-    pcap1 = os.path.join(path, PCAP1 + '.' + ZIP_FILE_EXTENSION)
-    if not os.path.exists(pcap1):
-        pcap1 = os.path.join(path, PCAP1)
-        f = open(pcap1)
-    else:
-        f = gzip.open(pcap1)
+    total_packets = len(list(dpkt.pcap.Reader(open_compressed_file(pcap1)))) + \
+                    len(list(dpkt.pcap.Reader(open_compressed_file(pcap1))))
+    print('  Found {} frames.'.format(colorize(total_packets, 'green')))
+    processed_packets = 0
+
+    f = open_compressed_file(pcap1)
 
     pcap = dpkt.pcap.Reader(f)
 
@@ -137,6 +144,10 @@ def parse_pcap(path, delta_t):
     for ts, buf in pcap:
         if start_ts < 0:
             start_ts = ts
+
+        processed_packets += 1
+        if processed_packets % 500 == 0:
+            print_progress(processed_packets, total_packets)
 
         eth = dpkt.ethernet.Ethernet(buf)
         ip = eth.data
@@ -296,12 +307,7 @@ def parse_pcap(path, delta_t):
     f.close()
 
     # Compute throughput after the bottleneck
-    pcap2 = os.path.join(path, PCAP2 + '.' + ZIP_FILE_EXTENSION)
-    if not os.path.exists(pcap2):
-        pcap2 = os.path.join(path, PCAP2)
-        f = open(pcap2)
-    else:
-        f = gzip.open(pcap2)
+    f = open_compressed_file(pcap2)
 
     pcap = dpkt.pcap.Reader(f)
 
@@ -318,6 +324,10 @@ def parse_pcap(path, delta_t):
 
         if start_ts < 0:
             start_ts = ts
+
+        processed_packets += 1
+        if processed_packets % 500 == 0:
+            print_progress(processed_packets, total_packets)
 
         eth = dpkt.ethernet.Ethernet(buf)
         ip = eth.data
@@ -367,6 +377,8 @@ def parse_pcap(path, delta_t):
             # client -> server
             throughput_data_size[connection_index] += ip.len * 8
 
+    print('  100.00%')
+
     fairness_troughput = compute_fairness(throughput, delta_t)
     fairness_sending_rate = compute_fairness(sending_rate, delta_t)
     fairness = {
@@ -400,17 +412,17 @@ def parse_pcap(path, delta_t):
                     data_info=data_info)
 
 
+def print_progress(current, total):
+    print_line('  {:7.3}%'.format( 100 * current / float(total)))
+
+
 def parse_buffer_backlog(path):
     output = {}
-    paths = glob.glob(os.path.join(path, '*.{}.{}'.format(BUFFER_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
-    paths += glob.glob(os.path.join(path, '*.{}'.format(BUFFER_FILE_EXTENSION)))
+    paths = glob.glob(os.path.join(path, '*.{}*'.format(BUFFER_FILE_EXTENSION)))
 
-    for i, p in enumerate(paths):
+    for i, file_path in enumerate(paths):
         output[i] = ([], [])
-        if is_compressed(p):
-            f = gzip.open(p)
-        else:
-            f = open(p)
+        f = open_compressed_file(file_path)
         for line in f:
             split = line.split(';')
             timestamp = parse_timestamp(split[0])
@@ -431,8 +443,7 @@ def parse_bbr_and_cwnd_values(path):
     bbr_values = {}
     cwnd_values = {}
 
-    paths = glob.glob(os.path.join(path, '*.{}.{}'.format(FLOW_FILE_EXTENSION, ZIP_FILE_EXTENSION)))
-    paths += glob.glob(os.path.join(path, '*.{}'.format(FLOW_FILE_EXTENSION)))
+    paths = glob.glob(os.path.join(path, '*.{}*'.format(FLOW_FILE_EXTENSION)))
 
     all_files = sorted(paths)
 
@@ -441,10 +452,7 @@ def parse_bbr_and_cwnd_values(path):
         bbr_values[i] = ([], [], [], [], [], [])
         cwnd_values[i] = ([], [], [])
 
-        if is_compressed(file_path):
-            f = gzip.open(file_path)
-        else:
-            f = open(file_path)
+        f = open_compressed_file(file_path)
 
         for line in f:
             split = map(lambda x: x.strip(), line.split(';'))
@@ -591,7 +599,6 @@ def compute_fairness(data, interval):
         output[0].append(ts)
         output[1].append(compute_jain_index(*shares))
         ts += interval
-
 
 
 def compute_jain_index(*args):
