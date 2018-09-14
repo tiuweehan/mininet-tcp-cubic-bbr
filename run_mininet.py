@@ -9,7 +9,7 @@ from helper.util import print_error, print_warning, print_success, colorize, pri
 from helper.util import get_git_revision_hash, get_host_version, get_available_algorithms, check_tools, check_tool
 from helper.util import sleep_progress_bar
 from helper.util import compress_file
-from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, COMPRESSION_METHODS
+from helper import BUFFER_FILE_EXTENSION, FLOW_FILE_EXTENSION, COMPRESSION_METHODS, TEXT_WIDTH
 
 import os
 import sys
@@ -21,7 +21,6 @@ import glob
 
 
 MAX_HOST_NUMBER = 256**2
-TEXT_WIDTH = 60
 
 
 class DumbbellTopo(Topo):
