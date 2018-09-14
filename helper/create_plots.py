@@ -9,17 +9,19 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from helper import PLOT_PATH, PLOT_TYPES
 from helper.util import print_line
+from helper import TEXT_WIDTH
 
 PLOT_TOTAL = True
 
 
 class Plot:
-    def __init__(self, data, plot_function, file_name, plot_name, unit):
+    def __init__(self, data, plot_function, file_name, plot_name, unit, number):
         self.data = data
         self.plot_function = plot_function
         self.file_name = file_name
         self.plot_name = plot_name
         self.unit = unit
+        self.number = number
 
 
 def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
@@ -57,48 +59,48 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
 
     if 'sending_rate' in plot_only:
         plots += [
-            Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s')
+            Plot((sending_rate, retransmissions), plot_sending_rate, 'plot_sending_rate.pdf', 'Sending Rate', 'bit/s', len(sending_rate))
         ]
 
     if 'throughput' in plot_only:
         plots += [
-            Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s')
+            Plot((throughput, retransmissions), plot_throughput, 'plot_throughput.pdf', 'Throughput', 'bit/s', len(throughput))
         ]
 
     if 'fairness' in plot_only and len(sending_rate.keys()) > 2:
         plots += [
-            Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index")
+            Plot(fairness, plot_fairness, 'plot_fairness.pdf', 'Fairness', "Jain's Index", len(fairness))
         ]
 
     if 'retransmission' in plot_only:
         plots += [
-            Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#'),
-            #Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%'),
+            Plot(retransmissions_interval, plot_retransmissions, 'plot_retransmissions.pdf', 'Retransmissions', '#', len(retransmissions_interval)),
+            Plot(retransmissions_interval, plot_retransmission_rate, 'plot_retransmission_rate.pdf', 'Retransmission Rate', '%', 1),
         ]
 
     if 'avg_rtt' in plot_only:
         plots += [
-            Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms')
+            Plot(avg_rtt, plot_avg_rtt, 'plot_avg_rtt.pdf', 'Avg RTT', 'ms', len(avg_rtt))
         ]
 
     if 'rtt' in plot_only:
         plots += [
-            Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms')
+            Plot(rtt, plot_rtt, 'plot_rtt.pdf', 'RTT', 'ms', len(rtt))
         ]
 
     if 'inflight' in plot_only:
         plots += [
-            Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit')
+            Plot(inflight, plot_inflight, 'plot_inflight.pdf', 'Inflight', 'bit', len(inflight))
         ]
 
     if 'cwnd' in plot_only:
         plots += [
-            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWnd', 'MSS')
+            Plot(cwnd_values, plot_cwnd, 'plot_cwnd.pdf', 'CWnd', 'MSS', 2)
         ]
 
     if 'buffer_backlog' in plot_only and len(buffer_backlog) > 0:
         plots += [
-            Plot((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog', 'bit')
+            Plot((buffer_backlog, retransmissions), plot_buffer_backlog, 'plot_buffer_backlog.pdf', 'Buffer Backlog', 'bit', len(buffer_backlog))
         ]
 
     has_bbr = False
@@ -109,28 +111,28 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
 
     if 'bdp' in plot_only and has_bbr:
         plots += [
-            Plot(bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP', 'bit'),
+            Plot(bbr_values, plot_bbr_bdp, 'plot_bbr_bdp.pdf', 'BDP', 'bit', len(bbr_values)),
             # Plot((inflight, bbr_values), plot_diff_inflight_bdp, 'plot_inflight_div_bdp.pdf', 'Inflight/BDP', ''),
         ]
 
     if 'btl_bw' in plot_only and has_bbr:
         plots += [
-            Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'BtlBw', 'bit/s'),
+            Plot((bbr_values, bbr_total_values), plot_bbr_bw, 'plot_bbr_bw.pdf', 'BtlBw', 'bit/s', len(bbr_values)),
         ]
 
     if 'rt_prop' in plot_only and has_bbr:
         plots += [
-            Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'RTprop', 'ms'),
+            Plot(bbr_values, plot_bbr_rtt, 'plot_bbr_rtt.pdf', 'RTprop', 'ms', len(bbr_values)),
         ]
 
     if 'window_gain' in plot_only and has_bbr:
         plots += [
-            Plot((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain', ''),
+            Plot((bbr_values, bbr_total_values), plot_bbr_window, 'plot_bbr_window.pdf', 'Window Gain', '', len(bbr_values)),
         ]
 
     if 'pacing_gain' in plot_only and has_bbr:
         plots += [
-            Plot((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain', '')
+            Plot((bbr_values, bbr_total_values), plot_bbr_pacing, 'plot_bbr_pacing.pdf', 'Pacing Gain', '', len(bbr_values))
         ]
 
     if all_plots:
@@ -146,7 +148,8 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
             setup_ax(ax=ax, title=plot.plot_name, label=label, xmin=0, xmax=t_max)
             plot.plot_function(plot.data, ax)
 
-            legend = ax.legend(loc='upper left', bbox_to_anchor=(0, -0.04, 1, 0), mode='expand', borderaxespad=0.1, ncol=10)
+            legend = ax.legend(loc='upper left', bbox_to_anchor=(0, -0.04, 1, 0), mode='expand', borderaxespad=0.1, ncol=20,
+                               shadow=True, fancybox=True)
 
             f.savefig(os.path.join(path, plot.file_name), bbox_extra_artists=(legend, ), bbox_inches='tight')
             plt.close()
@@ -157,11 +160,12 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
     if len(plots) == 1:
         axarr = [axarr]
 
-    pdf_height = 55.0 * float(len(plots)) / len(PLOT_TYPES)
+    pdf_height = 60.0 * float(len(plots)) / len(PLOT_TYPES)
     f.set_size_inches(20, pdf_height)
+    max_legend_rows = 1
 
     for i, plot in enumerate(plots):
-        print_line('     -  Complete plot: {} ...                                 '.format(plot.plot_name))
+        print_line('     -  Complete plot: {} ...'.format(plot.plot_name).ljust(TEXT_WIDTH))
         label = plot.plot_name
         if plot.unit != '':
             label += ' in {}'.format(plot.unit)
@@ -173,14 +177,17 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
         legend_offset = -0.04
         if i == len(plots) - 1:
             legend_offset = -0.08
-        legend = axarr[i].legend(loc='upper left', bbox_to_anchor=(0, legend_offset, 1, 0), borderaxespad=0, ncol=10)
+        legend = axarr[i].legend(loc='upper left', bbox_to_anchor=(0, legend_offset, 1, 0),
+                                 borderaxespad=0, ncol=20,shadow=True, fancybox=True, mode='expand')
 
-    print('  *  Complete plot ...                  ')
-    plt.tight_layout(h_pad=2.5)
+        max_legend_rows = max(max_legend_rows, math.ceil(plot.number / 20.0))
+
+    print_line('  *  Complete plot ...'.ljust(TEXT_WIDTH))
+    plt.tight_layout(h_pad=1 + 1.5 * max_legend_rows)
     plt.savefig(os.path.join(path, 'plot_complete.pdf'), bbox_extra_artists=(legend, ), bbox_inches='tight')
 
     plt.close()
-    print('  *  Complete plot created                  ')
+    print('  *  Complete plot created'.ljust(TEXT_WIDTH))
 
 
 def setup_ax(ax, title , label, xmin, xmax):
@@ -204,14 +211,14 @@ def plot_throughput(data, p_plt):
     if total > 1 and PLOT_TOTAL:
         data = throughput[total]
         data = filter_smooth(data, 5, 2)
-        p_plt.plot(data[0], data[1], label='Total Throughput', color='#444444')
+        p_plt.plot(data[0], data[1], label='Total', color='#444444')
 
     for c in throughput:
         data = throughput[c]
         data = filter_smooth(data, 5, 2)
 
         if int(c) != total:
-            p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+            p_plt.plot(data[0], data[1], label='{}'.format(c))
 
     for c in retransmissions:
         data = retransmissions[c]
@@ -226,14 +233,14 @@ def plot_sending_rate(data, p_plt):
     if total > 1 and PLOT_TOTAL:
         data = sending_rate[total]
         data = filter_smooth(data, 5, 2)
-        p_plt.plot(data[0], data[1], label='Total Sending Rate', color='#444444')
+        p_plt.plot(data[0], data[1], label='Total', color='#444444')
 
     for c in sending_rate:
         data = sending_rate[c]
         data = filter_smooth(data, 5, 2)
 
         if int(c) != total:
-            p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+            p_plt.plot(data[0], data[1], label='{}'.format(c))
 
     for c in retransmissions:
         data = retransmissions[c]
@@ -251,7 +258,7 @@ def plot_fairness(fairness, p_plt):
 def plot_rtt(rtt, p_plt):
     for c in rtt:
         data = rtt[c]
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[1], label='{}'.format(c))
     p_plt.set_ylim(ymin=0)
 
 
@@ -259,7 +266,7 @@ def plot_avg_rtt(avg_rtt, p_plt):
     for c in avg_rtt:
         data = avg_rtt[c]
         data = filter_smooth(data, 3, 2)
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[1], label='{}'.format(c))
     p_plt.set_ylim(ymin=0)
 
 
@@ -267,7 +274,7 @@ def plot_inflight(inflight, p_plt):
     for c in inflight:
         data = inflight[c]
         data = filter_smooth(data, 5, 1)
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[1], label='{}'.format(c))
 
 
 def plot_buffer_backlog(data, p_plt):
@@ -293,7 +300,7 @@ def plot_bbr_bw(data, p_plt):
     num_flows = 0
     for c in bbr:
         data = bbr[c]
-        p_plt.plot(data[0], data[1], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[1], label='{}'.format(c))
         if len(data[0]) > 0:
             num_flows += 1
 
@@ -304,14 +311,14 @@ def plot_bbr_bw(data, p_plt):
 def plot_bbr_rtt(bbr, p_plt):
     for c in bbr:
         data = bbr[c]
-        p_plt.plot(data[0], data[2], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[2], label='{}'.format(c))
 
 
 def plot_bbr_pacing(data, p_plt):
     bbr, total = data
     for c in bbr:
         data = bbr[c]
-        p_plt.plot(data[0], data[3], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[3], label='{}'.format(c))
     #if len(bbr) > 1:
     #    p_plt.plot(total[2][0], total[2][1], label='Total', color='#444444')
 
@@ -321,7 +328,7 @@ def plot_bbr_window(data, p_plt):
     num_flows = 0
     for c in bbr:
         data = bbr[c]
-        p_plt.plot(data[0], data[4], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[4], label='{}'.format(c))
         if len(data[0]) > 0:
             num_flows += 1
     if len(bbr) > 2 and num_flows > 1 and PLOT_TOTAL:
@@ -331,7 +338,7 @@ def plot_bbr_window(data, p_plt):
 def plot_bbr_bdp(bbr, p_plt):
     for c in bbr:
         data = bbr[c]
-        p_plt.plot(data[0], data[5], label='Connection {}'.format(c))
+        p_plt.plot(data[0], data[5], label='{}'.format(c))
 
 
 def plot_cwnd(cwnd, p_plt):
@@ -368,17 +375,25 @@ def plot_retransmissions(ret_interval, p_plt):
 
 
 def plot_retransmission_rate(ret_interval, p_plt):
-    data = ret_interval[len(ret_interval) - 1]
 
-    rate = []
-    ts = data[0]
+    for c in ret_interval:
 
-    for i,_ in enumerate(data[1]):
-        if data[2][i] == 0:
-            rate.append(0)
+        data = ret_interval[c]
+
+        rate = []
+        ts = data[0]
+
+        for i,_ in enumerate(data[1]):
+            if data[2][i] == 0:
+                rate.append(0)
+            else:
+                rate.append(float(data[1][i]) / float(data[2][i]) * 100)
+
+        if c is len(ret_interval) - 1:
+            p_plt.plot(ts, rate, label='Total Retransmission Rate', color='black')
         else:
-            rate.append(float(data[1][i]) / float(data[2][i]) * 100)
-    p_plt.plot(ts, rate, label='Retransmission Rate')
+            p_plt.plot(ts, rate, label='{}'.format(c), alpha=0.3)
+
     p_plt.set_ylim(ymin=0)
 
 
@@ -409,7 +424,7 @@ def plot_diff_inflight_bdp(data, p_plt):
                     bdp = bdp[j:]
                     break
         ts, diff = filter_smooth((ts, diff), 10, 5)
-        p_plt.plot(ts, diff, label='Connection {}'.format(c))
+        p_plt.plot(ts, diff, label='{}'.format(c))
 
 
 def filter_smooth(data, size, repeat=1):

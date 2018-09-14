@@ -1,3 +1,6 @@
+TEXT_WIDTH = 60
+
+
 BUFFER_FILE_EXTENSION = 'buffer'
 FLOW_FILE_EXTENSION = 'bbr'
 
