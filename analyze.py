@@ -267,6 +267,8 @@ def parse_pcap(path, delta_t):
             if tcp_seq < 0:
                 tcp_seq += 2 ** 32
 
+            packet_counter[connection_index] += 1
+
             inflight_seq[connection_index] = max(tcp_seq, inflight_seq[connection_index])
             sending_rate_data_size[connection_index] += ip.len * 8
 
@@ -275,9 +277,7 @@ def parse_pcap(path, delta_t):
                 retransmission_counter[connection_index] += 1
 
             else:
-                packet_counter[connection_index] += 1
-                if len(tcp.data) > 0:
-                    seqs[connection_index].append(tcp_seq)
+                seqs[connection_index].append(tcp_seq)
                 if ts_val is not None:
                     ts_vals[connection_index][0].append(ts)
                     ts_vals[connection_index][1].append(ts_val)
