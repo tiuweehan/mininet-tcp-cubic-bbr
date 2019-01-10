@@ -232,6 +232,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
     current_time = 0
     host_counter = 0
 
+
     try:
         for cmd in commands:
             start = cmd['start']
@@ -251,7 +252,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
                     s2.cmd(traffic_shaping('netem', 's2-eth2', add=not netem_running, delay=current_netem_delay,
                                            loss=current_netem_loss))
                     netem_running = True
-                    log_String = '  Change netem to rtt: {}, loss: {}.'.format(current_netem_delay, current_netem_loss)
+                    log_String = '  Change {} to {}.'.format(cmd['change'], cmd['value'])
 
             elif cmd['command'] == 'host':
                 send = net.get('h{}'.format(host_counter))

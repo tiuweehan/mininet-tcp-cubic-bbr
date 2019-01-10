@@ -416,7 +416,7 @@ def parse_pcap(path, delta_t):
 
 
 def print_progress(current, total):
-    print_line('  {:7.3}%'.format( 100 * current / float(total)))
+    print_line('  {:7.3}%          '.format( 100 * current / float(total)))
 
 
 def parse_buffer_backlog(path):
