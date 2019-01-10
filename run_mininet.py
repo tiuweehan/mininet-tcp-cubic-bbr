@@ -90,7 +90,7 @@ def parseConfigFile(file):
                 print_warning('Too few arguments to change link in line\n{}'.format(line))
                 continue
             change = split[1].strip()
-            if change != 'bw' and change != 'rtt':
+            if change != 'bw' and change != 'rtt' and change != 'loss':
                 print_warning('Unknown link option "{} in line\n{}'.format(change, line))
                 continue
             value = split[2].strip()
@@ -117,10 +117,26 @@ def parseConfigFile(file):
     return output
 
 
-def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_size, buffer_latency, poll_interval):
+def traffic_shaping(mode, interface, add, **kwargs):
+    if mode == 'tbf':
+        command = 'tc qdisc {} dev {} root tbf rate {} buffer {} latency {}'.format('add' if add else ' change',
+                                                                                    interface, kwargs['rate'],
+                                                                                    kwargs['buffer'], kwargs['latency'])
+    elif mode == 'netem':
+        command = 'tc qdisc {} dev {} root netem delay {} loss {}'.format('add' if add else ' change',
+                                                                          interface, kwargs['delay'], kwargs['loss'])
+    return command
+
+
+def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_loss,
+             buffer_size, buffer_latency, poll_interval):
+
     duration = 0
     start_time = 0
     number_of_hosts = 0
+
+    current_netem_delay = initial_rtt
+    current_netem_loss = initial_loss
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -133,6 +149,8 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
         'Initial Bandwidth: {}'.format(bandwidth),
         'Burst Buffer: {}'.format(buffer_size),
         'Buffer Latency: {}'.format(buffer_latency),
+        'Initial Link RTT: {}'.format(initial_rtt),
+        'Initial Link Loss: {}'.format(initial_loss),
         'Commands: '
     ]
     for cmd in commands:
@@ -176,6 +194,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
         print_error('Error on starting tcpdump\n{}'.format(e))
         sys.exit(1)
 
+
     time.sleep(1)
 
     host_counter = 0
@@ -199,13 +218,12 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
         send.cmd('./ss_script.sh {} >> {}.{} &'.format(poll_interval, os.path.join(output_directory, send.IP()), FLOW_FILE_EXTENSION))
 
     s2, s3 = net.get('s2', 's3')
-    s2.cmd('tc qdisc add dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
-        bandwidth, buffer_size, buffer_latency))
+    s2.cmd(traffic_shaping('tbf', 's2-eth2', add=True, rate=bandwidth, buffer=buffer_size, latency=buffer_latency))
 
     netem_running = False
-    if initial_rtt != '0ms':
+    if current_netem_delay != '0ms' or current_netem_loss != '0%':
         netem_running = True
-        s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(initial_rtt))
+        s2.cmd(traffic_shaping('netem', 's2-eth1', add=True, delay=current_netem_delay, loss=current_netem_loss))
     s2.cmd('./buffer_script.sh {0} {1} >> {2}.{3} &'.format(poll_interval, 's2-eth2',
                                                             os.path.join(output_directory, 's2-eth2-tbf'),
                                                             BUFFER_FILE_EXTENSION))
@@ -222,17 +240,19 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, buffer_si
 
             if cmd['command'] == 'link':
                 s2 = net.get('s2')
+
                 if cmd['change'] == 'bw':
-                    s2.cmd('tc qdisc change dev s2-eth2 root tbf rate {} buffer {} latency {}'.format(
-                        cmd['value'], buffer_size, buffer_latency))
+                    s2.cmd(traffic_shaping('tbf', 's2-eth2', add=False, rate=cmd['value'], buffer=buffer_size, latency=buffer_latency))
                     log_String = '  Change bandwidth to {}.'.format(cmd['value'])
-                elif cmd['change'] == 'rtt':
-                    if netem_running:
-                        s2.cmd('tc qdisc change dev s2-eth1 root netem delay {}'.format(cmd['value']))
-                    else:
-                        netem_running = True
-                        s2.cmd('tc qdisc add dev s2-eth1 root netem delay {}'.format(cmd['value']))
-                    log_String = '  Change rtt to {}.'.format(cmd['value'])
+
+                elif cmd['change'] == 'rtt' or cmd['change'] == 'loss':
+                    current_netem_delay = cmd['value'] if cmd['change'] == 'rtt' else current_netem_delay
+                    current_netem_loss = cmd['value'] if cmd['change'] == 'loss' else current_netem_loss
+
+                    s2.cmd(traffic_shaping('netem', 's2-eth1', add=not netem_running, delay=current_netem_delay,
+                                           loss=current_netem_loss))
+                    netem_running = True
+                    log_String = '  Change netem to rtt: {}, loss: {}.'.format(current_netem_delay, current_netem_loss)
 
             elif cmd['command'] == 'host':
                 send = net.get('h{}'.format(host_counter))
@@ -262,6 +282,7 @@ def verify_arguments(args, commands):
 
     verified &= verify('rate', args.bandwidth)
     verified &= verify('time', args.rtt)
+    verified &= verify('percent', args.loss)
     verified &= verify('size', args.buffer_size)
     verified &= verify('time', args.latency)
 
@@ -271,6 +292,8 @@ def verify_arguments(args, commands):
                 verified &= verify('rate', c['value'])
             elif c['change'] == 'rtt':
                 verified &= verify('time', c['value'])
+            elif c['change'] == 'loss':
+                verified &= verify('percent', c['value'])
         elif c['command'] == 'host':
             verified &= verify('time', c['rtt'])
 
@@ -284,6 +307,8 @@ def verify(type, value):
         allowed = ['s', 'ms', 'us']
     elif type == 'size':
         allowed = ['b', 'kbit', 'mbit', 'kb', 'k', 'mb', 'm']
+    elif type == 'percent':
+        allowed = ['%']
     else:
         allowed = []  # Unknown type
 
@@ -319,6 +344,8 @@ if __name__ == '__main__':
                         default='10Mbit', help='Initial bandwidth of the bottleneck link. (default: 10mbit)')
     parser.add_argument('-r', dest='rtt',
                         default='0ms', help='Initial rtt for all flows. (default 0ms)')
+    parser.add_argument('--loss', dest='loss',
+                        default='0%', help='Initial rtt for all flows. (default 0%)')
     parser.add_argument('-d', dest='directory',
                         default='test/', help='Path to the output directory. (default: test/)')
     parser.add_argument('-s', dest='buffer_size',
@@ -356,6 +383,7 @@ if __name__ == '__main__':
     # setLogLevel('info')
     run_test(bandwidth=args.bandwidth,
              initial_rtt=args.rtt,
+             initial_loss=args.loss,
              commands=commands,
              buffer_size=args.buffer_size,
              buffer_latency=args.latency,
