@@ -119,11 +119,11 @@ def parseConfigFile(file):
 
 def traffic_shaping(mode, interface, add, **kwargs):
     if mode == 'tbf':
-        command = 'tc qdisc {} dev {} root tbf rate {} buffer {} latency {}'.format('add' if add else ' change',
+        command = 'tc qdisc {} dev {} root handle 1: tbf rate {} buffer {} latency {}'.format('add' if add else ' change',
                                                                                     interface, kwargs['rate'],
                                                                                     kwargs['buffer'], kwargs['latency'])
     elif mode == 'netem':
-        command = 'tc qdisc {} dev {} root netem delay {} loss {}'.format('add' if add else ' change',
+        command = 'tc qdisc {} dev {} parent 1: handle 2: netem delay {} loss {}'.format('add' if add else ' change',
                                                                           interface, kwargs['delay'], kwargs['loss'])
     return command
 
@@ -223,14 +223,13 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
     netem_running = False
     if current_netem_delay != '0ms' or current_netem_loss != '0%':
         netem_running = True
-        s2.cmd(traffic_shaping('netem', 's2-eth1', add=True, delay=current_netem_delay, loss=current_netem_loss))
+        s2.cmd(traffic_shaping('netem', 's2-eth2', add=True, delay=current_netem_delay, loss=current_netem_loss))
     s2.cmd('./buffer_script.sh {0} {1} >> {2}.{3} &'.format(poll_interval, 's2-eth2',
                                                             os.path.join(output_directory, 's2-eth2-tbf'),
                                                             BUFFER_FILE_EXTENSION))
 
     complete = duration
     current_time = 0
-
     host_counter = 0
 
     try:
@@ -249,7 +248,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
                     current_netem_delay = cmd['value'] if cmd['change'] == 'rtt' else current_netem_delay
                     current_netem_loss = cmd['value'] if cmd['change'] == 'loss' else current_netem_loss
 
-                    s2.cmd(traffic_shaping('netem', 's2-eth1', add=not netem_running, delay=current_netem_delay,
+                    s2.cmd(traffic_shaping('netem', 's2-eth2', add=not netem_running, delay=current_netem_delay,
                                            loss=current_netem_loss))
                     netem_running = True
                     log_String = '  Change netem to rtt: {}, loss: {}.'.format(current_netem_delay, current_netem_loss)
