@@ -6,4 +6,4 @@ do
             break
     fi
     sleep $1;
-done | ts -s '%H:%M:%.S;'
+done | ts '%.s;'

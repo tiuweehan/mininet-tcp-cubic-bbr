@@ -49,6 +49,22 @@ class PcapData:
             buffer_backlog=pcap_dict['buffer_backlog']
         )
 
+    def get_min_ts(self):
+        t_min = float('inf')
+        data = self.values_as_dict()
+        for v in data:
+            for c in data[v]:
+                t_min = min(t_min, data[v][c][0][0])
+        return t_min
+
+    def get_max_ts(self):
+        t_max = -float('inf')
+        data = self.values_as_dict()
+        for v in data:
+            for c in data[v]:
+                t_max = max(t_max, data[v][c][0][-1])
+        return t_max
+
 
 class DataInfo:
 

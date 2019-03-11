@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
+from pcap_data import PcapData
 from helper import PLOT_PATH, PLOT_TYPES
 from helper.util import print_line
 from helper import TEXT_WIDTH
@@ -38,6 +39,8 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
             if exc.errno != errno.EEXIST:
                 raise
 
+    pcap_data = shift_timestamps(pcap_data)
+
     throughput = pcap_data.throughput
     fairness = pcap_data.fairness
     rtt = pcap_data.rtt
@@ -51,10 +54,8 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
     retransmissions_interval = pcap_data.retransmissions_interval
     buffer_backlog = pcap_data.buffer_backlog
 
-    t_max = 0
-    for t in throughput:
-        t_max = max(t_max, throughput[t][0][-1])
-
+    t_max = pcap_data.get_max_ts()
+    t_min = pcap_data.get_min_ts()
     plots = []
 
     if 'sending_rate' in plot_only:
@@ -145,7 +146,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
             if plot.unit != '':
                 label += ' in {}'.format(plot.unit)
 
-            setup_ax(ax=ax, title=plot.plot_name, label=label, xmin=0, xmax=t_max)
+            setup_ax(ax=ax, title=plot.plot_name, label=label, xmin=t_min, xmax=t_max)
             plot.plot_function(plot.data, ax)
 
             legend = ax.legend(loc='upper left', bbox_to_anchor=(0, -0.04, 1, 0), mode='expand', borderaxespad=0.1, ncol=20,
@@ -171,7 +172,7 @@ def plot_all(path, pcap_data, plot_only, hide_total=False, all_plots=False):
             label += ' in {}'.format(plot.unit)
 
         title = '{}. {}'.format(i + 1, plot.plot_name)
-        setup_ax(ax=axarr[i], title=title, label=label, xmin=0, xmax=t_max)
+        setup_ax(ax=axarr[i], title=title, label=label, xmin=t_min, xmax=t_max)
         plot.plot_function(plot.data, axarr[i])
 
         legend_offset = -0.04
@@ -194,8 +195,8 @@ def setup_ax(ax, title , label, xmin, xmax):
     grid_tick_maior_interval = 10
     grid_tick_minor_interval = 2
 
-    ax.set_xticks(np.arange(0, xmax, grid_tick_maior_interval))
-    ax.set_xticks(np.arange(0, xmax, grid_tick_minor_interval), minor=True)
+    ax.set_xticks(np.arange(xmin, xmax, grid_tick_maior_interval))
+    ax.set_xticks(np.arange(xmin, xmax, grid_tick_minor_interval), minor=True)
     ax.grid(which='both', color='black', linestyle='dashed', alpha=0.4)
 
     ax.set_ylabel(label)
@@ -466,3 +467,14 @@ def filter_percentile(data, percentile_min=0.0, percentile_max=0.0):
     x, y = zip(*sorted(zip(x, y)))
 
     return x, y
+
+
+def shift_timestamps(data):
+    t_min = data.get_min_ts()
+    data = data.values_as_dict()
+
+    for v in data:
+        for c in data[v]:
+            data[v][c][0][:] = [x - t_min for x in data[v][c][0]]
+
+    return PcapData.from_dict(data)

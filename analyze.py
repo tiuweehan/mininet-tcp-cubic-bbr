@@ -147,6 +147,7 @@ def parse_pcap(path, delta_t):
     for ts, buf in pcap:
         if start_ts < 0:
             start_ts = ts
+            t = start_ts + delta_t
 
         processed_packets += 1
         if processed_packets % 500 == 0:
@@ -167,7 +168,7 @@ def parse_pcap(path, delta_t):
         else:
             tcp_tuple = (dst_ip, dst_port, src_ip, src_port)
 
-        while ts - start_ts > t:
+        while ts >= t:
 
             total_sending_rate[0].append(t)
             total_sending_rate[1].append(0)
@@ -273,7 +274,7 @@ def parse_pcap(path, delta_t):
             sending_rate_data_size[connection_index] += ip.len * 8
 
             if tcp_seq in seqs[connection_index]:
-                retransmissions[connection_index][0].append(ts - start_ts)
+                retransmissions[connection_index][0].append(ts)
                 retransmission_counter[connection_index] += 1
 
             else:
@@ -301,7 +302,7 @@ def parse_pcap(path, delta_t):
 
                 avg_rtt_samples[connection_index].append(rtt)
 
-                round_trips[connection_index][0].append(ts - start_ts)
+                round_trips[connection_index][0].append(ts)
                 round_trips[connection_index][1].append(rtt)
 
         inflight_data = max(0, inflight_seq[connection_index] - inflight_ack[connection_index])
@@ -320,13 +321,9 @@ def parse_pcap(path, delta_t):
 
     throughput_data_size = {}
 
-    start_ts = -1
-    t = 0
+    t = start_ts + delta_t
 
     for ts, buf in pcap:
-
-        if start_ts < 0:
-            start_ts = ts
 
         processed_packets += 1
         if processed_packets % 500 == 0:
@@ -347,7 +344,7 @@ def parse_pcap(path, delta_t):
         else:
             tcp_tuple = (dst_ip, dst_port, src_ip, src_port)
 
-        while ts - start_ts > t:
+        while ts >= t:
             total_throughput[0].append(t)
             total_throughput[1].append(0)
 
@@ -509,12 +506,7 @@ def parse_bbr_and_cwnd_values(path):
 
 
 def parse_timestamp(string):
-    seconds = 0
-    string = string.split(':')
-    seconds += float(string[0]) * 3600
-    seconds += float(string[1]) * 60
-    seconds += float(string[2])
-    return seconds
+    return float(string)
 
 
 def compute_total_values(bbr):
@@ -583,10 +575,12 @@ def compute_fairness(data, interval):
     connections = [0, ] * len(data.keys())
 
     max_ts = 0
+    min_ts = float('inf')
     for c in data:
         max_ts = max(max_ts, max(data[c][0]))
+        min_ts = min(min_ts, min(data[c][0]))
 
-    ts = 0
+    ts = min_ts
     while True:
         if ts > max_ts:
             return output
