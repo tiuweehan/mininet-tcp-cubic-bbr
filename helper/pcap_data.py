@@ -54,7 +54,8 @@ class PcapData:
         data = self.values_as_dict()
         for v in data:
             for c in data[v]:
-                t_min = min(t_min, data[v][c][0][0])
+                if len(data[v][c][0]) > 0:
+                    t_min = min(t_min, data[v][c][0][0])
         return t_min
 
     def get_max_ts(self):
@@ -62,7 +63,8 @@ class PcapData:
         data = self.values_as_dict()
         for v in data:
             for c in data[v]:
-                t_max = max(t_max, data[v][c][0][-1])
+                if len(data[v][c][0]) > 0:
+                    t_max = max(t_max, data[v][c][0][-1])
         return t_max
 
 
