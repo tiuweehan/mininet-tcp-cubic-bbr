@@ -141,7 +141,7 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    write_config = [
+    config = [
         'Test Name: {}'.format(name),
         'Date: {}'.format(time.strftime('%c')),
         'Kernel: {}'.format(get_host_version()),
@@ -164,11 +164,10 @@ def run_test(commands, output_directory, name, bandwidth, initial_rtt, initial_l
             config_line += '{}, {}, {}, {}'.format(cmd['algorithm'], cmd['rtt'], cmd['start'], cmd['stop'])
             if start_time + cmd['stop'] > duration:
                 duration = start_time + cmd['stop']
-        write_config.append(config_line)
+        config.append(config_line)
 
     with open(os.path.join('{}'.format(output_directory), 'parameters.txt'), 'w') as f:
-        f.write('\n'.join(write_config))
-        f.close()
+        f.write('\n'.join(config))
 
     print('-' * TEXT_WIDTH)
     print('Starting test: {}'.format(name))

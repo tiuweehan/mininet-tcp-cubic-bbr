@@ -105,7 +105,7 @@ def read_csv(path, columns_per_connection=2):
     if file_path is None:
         raise IOError('File not found {}'.format(path))
 
-    f = open_compressed_file(find_file(path))
+    f = open_compressed_file(file_path)
 
     first_line = f.readline().split(';')[:-1]
     for line in f:

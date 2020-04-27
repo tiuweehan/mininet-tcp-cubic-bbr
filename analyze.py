@@ -382,7 +382,7 @@ def parse_pcap(path, delta_t):
     fairness_troughput = compute_fairness(throughput, delta_t)
     fairness_sending_rate = compute_fairness(sending_rate, delta_t)
     fairness = {
-        'Throughtput': fairness_troughput,
+        'Throughput': fairness_troughput,
         'Sending Rate': fairness_sending_rate
     }
 
